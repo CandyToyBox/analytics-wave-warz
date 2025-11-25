@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { TraderProfileStats, TraderBattleHistory } from '../types';
 import { formatSol, formatPct } from '../utils';
@@ -88,40 +89,51 @@ const HistoryRow: React.FC<{ item: TraderBattleHistory }> = ({ item }) => {
       {expanded && (
         <tr className="bg-navy-950/30">
           <td colSpan={6} className="p-0">
-            <div className="border-l-2 border-wave-blue ml-8 my-2 pl-4 py-2 space-y-1 animate-in slide-in-from-top-2 duration-200">
-                <div className="flex justify-between items-end mb-2 pr-4">
-                    <span className="text-[10px] font-bold text-ui-gray uppercase tracking-wider">Transaction Ledger</span>
+            {/* Indented Container aligned with Artist Name Text (approx 4.5rem left) */}
+            <div className="border-l-2 border-wave-blue/20 ml-[4.5rem] my-2 pl-4 py-2 space-y-1 animate-in slide-in-from-top-2 duration-200 relative">
+                
+                {/* Visual connector line */}
+                <div className="absolute -left-[2px] -top-3 h-4 w-[2px] bg-wave-blue/20"></div>
+
+                <div className="flex justify-between items-center mb-2 pr-6 border-b border-navy-800/50 pb-1 mr-6">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                       <Activity size={10} /> Transaction Ledger
+                    </span>
                     <span className="text-[10px] font-mono text-slate-500">{item.transactions.length} entries</span>
                 </div>
                 
                 {item.transactions.map((tx, idx) => (
-                  <div key={`${tx.signature}-${idx}`} className="flex items-center justify-between bg-navy-900 p-2 rounded border border-navy-800 text-xs mr-4 hover:border-navy-700 transition-colors">
-                     <div className="flex items-center gap-3">
-                       <div className={`p-1 rounded-full ${tx.type === 'INVEST' ? 'bg-alert-red/10 text-alert-red' : 'bg-action-green/10 text-action-green'}`}>
+                  <div key={`${tx.signature}-${idx}`} className="flex items-center justify-between bg-navy-900/40 p-1.5 rounded border border-navy-800/50 text-xs mr-6 hover:bg-navy-900 hover:border-navy-700 transition-colors group">
+                     
+                     <div className="flex items-center gap-3 min-w-[140px]">
+                       <div className={`p-1 rounded-md ${tx.type === 'INVEST' ? 'bg-navy-800 text-slate-400' : 'bg-action-green/10 text-action-green'}`}>
                          {tx.type === 'INVEST' 
                            ? <ArrowUpRight size={12} /> 
                            : <ArrowDownLeft size={12} />
                          }
                        </div>
                        <div className="flex flex-col">
-                           <span className={`font-medium text-[10px] uppercase tracking-wide ${tx.type === 'INVEST' ? 'text-slate-300' : 'text-action-green'}`}>
-                             {tx.type === 'INVEST' ? 'Investment Out' : 'Payout Received'}
+                           <span className={`font-semibold text-[10px] uppercase tracking-wide ${tx.type === 'INVEST' ? 'text-slate-400' : 'text-action-green'}`}>
+                             {tx.type === 'INVEST' ? 'Invested' : 'Payout'}
                            </span>
-                           <span className="text-ui-gray text-[10px] font-mono">{new Date(tx.date).toLocaleTimeString()}</span>
+                           <span className="text-slate-600 text-[10px] font-mono">{new Date(tx.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                        </div>
                      </div>
-                     <div className="flex items-center gap-4">
-                       <span className="font-mono font-bold text-white text-xs">{formatSol(tx.amount)}</span>
-                       <a 
+                     
+                     <div className="flex-1 text-right pr-4">
+                       <span className="font-mono font-bold text-slate-300">{formatSol(tx.amount)}</span>
+                     </div>
+                     
+                     <a 
                          href={`https://solscan.io/tx/${tx.signature}`} 
                          target="_blank" 
                          rel="noreferrer"
-                         className="p-1 text-ui-gray hover:text-wave-blue hover:bg-navy-800 rounded transition-all"
+                         className="p-1 text-ui-gray hover:text-wave-blue rounded transition-colors"
                          title="View on Solscan"
+                         onClick={(e) => e.stopPropagation()}
                        >
                          <ExternalLink size={10} />
-                       </a>
-                     </div>
+                     </a>
                   </div>
                 ))}
             </div>
