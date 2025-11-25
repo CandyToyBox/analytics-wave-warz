@@ -17,7 +17,7 @@ export function generateBattleFrameHtml(battle: any, baseUrl: string): string {
   // Use the battle image or a fallback
   const imageUrl = battle.image_url || 'https://wavewarz.com/default-battle.png';
   
-  // Calculate simple stats for display if needed, or rely on the image
+  // Stats
   const tvlA = battle.artist1_pool || 0;
   const tvlB = battle.artist2_pool || 0;
   
