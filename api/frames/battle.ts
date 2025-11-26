@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get battle ID from query params
     const { battleId } = req.query;
 
-    if (!battleId || typeof battleId !== 'string') {
+    if (!battleId || typeof battleId !== 'string' || battleId.trim() === '') {
       return res.status(400).json({ 
         error: 'Battle ID is required',
         usage: 'GET /api/frames/battle?battleId=YOUR_BATTLE_ID'
@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch battle data from Supabase
     const { data: battle, error } = await supabaseAdmin
       .from('battles')
-      .select('*')
+      .select('id, artist1, artist2, start_time, end_time, status')
       .eq('id', battleId)
       .single();
 
