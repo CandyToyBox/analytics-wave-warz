@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+package-lock.json
+
+# Generated JavaScript files (TypeScript source files are compiled during build)
+*.js
 
 # Editor directories and files
 .vscode/*

@@ -45,27 +45,29 @@
         }
       }
     </script>
+    <!-- Polyfill Buffer globally as some Solana web3 internals may rely on it -->
+    <script type="module">
+      import { Buffer } from 'https://esm.sh/buffer@6.0.3';
+      window.Buffer = Buffer;
+    </script>
   <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "@solana/web3.js": "https://esm.sh/@solana/web3.js@1.95.3",
-    "buffer": "https://esm.sh/buffer@6.0.3",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.0",
+    "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.5.12",
+    "@solana/web3.js": "https://aistudiocdn.com/@solana/web3.js@^1.98.4",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.84.0"
   }
 }
-</script>
-<!-- Polyfill Buffer globally as some Solana web3 internals may rely on it -->
-<script type="module">
-  import { Buffer } from 'buffer';
-  window.Buffer = Buffer;
 </script>
 </head>
   <body class="bg-navy-950 text-white antialiased font-sans selection:bg-wave-blue/30">
     <div id="root"></div>
+    <!-- CRITICAL: Entry point for Vite App -->
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
