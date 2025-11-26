@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { supabaseAdmin } from '../utils/supabase-admin.js';
 import { generateBattleFrameHtml } from '../utils/frame-generator.js';
-import { supabaseAdmin } from '../utils/supabase-admin';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Set CORS headers for Farcaster frame access
