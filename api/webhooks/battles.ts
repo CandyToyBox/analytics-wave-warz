@@ -18,11 +18,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (type === 'INSERT') {
       // New Battle Created
       console.log(`🆕 NEW BATTLE: ${record.artist1_name} vs ${record.artist2_name}`);
-      // Add logic here to post to Farcaster if desired
+      // Future: Add Farcaster notification logic here
     } 
     else if (type === 'UPDATE') {
       // Battle Updated
-      if (record.winner_decided && !old_record.winner_decided) {
+      if (record.winner_decided && !old_record?.winner_decided) {
         const winner = record.winner_artist_a ? record.artist1_name : record.artist2_name;
         console.log(`🏆 WINNER DECIDED: ${winner} won battle ${record.battle_id}`);
       }
