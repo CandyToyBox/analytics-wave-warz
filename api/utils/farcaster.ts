@@ -34,7 +34,8 @@ export async function announceBattle(params: AnnounceBattleParams): Promise<Anno
   }
 
   try {
-    const castMessage = `🎵 New WaveWarz Battle! 🎵\n\n${artist1Name} vs ${artist2Name}\n\nWho will win? Cast your vote now!\n\nhttps://wavewarz-analytics.vercel.app`;
+    const appUrl = process.env.APP_URL || 'https://wavewarz-analytics.vercel.app';
+    const castMessage = `🎵 New WaveWarz Battle! 🎵\n\n${artist1Name} vs ${artist2Name}\n\nWho will win? Cast your vote now!\n\n${appUrl}`;
     
     const response = await fetch('https://api.neynar.com/v2/farcaster/cast', {
       method: 'POST',

@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // When a new battle is created (INSERT), post to Farcaster
-    if (type === 'INSERT') {
+    if (type === 'INSERT' && record) {
       await postBattleToFarcaster(record);
     }
 
