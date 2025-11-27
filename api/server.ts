@@ -16,7 +16,8 @@ app.get('/health', (req, res) => {
 });
 
 // Webhook endpoints for Supabase
-// Type assertion needed because battleWebhookHandler uses Vercel types
+// battleWebhookHandler uses Vercel types for serverless deployment, but is runtime-compatible
+// with Express since both share the same underlying Node.js http.IncomingMessage/ServerResponse
 app.post('/api/webhooks/battles', battleWebhookHandler as unknown as RequestHandler);
 
 // Farcaster Frame endpoints
