@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { 
   Trophy, 
   Activity, 
@@ -707,6 +709,8 @@ export default function App() {
       </footer>
 
       <DebugDataSync />
+      <Analytics />
+      <SpeedInsights />
     </div>
   );
 }
