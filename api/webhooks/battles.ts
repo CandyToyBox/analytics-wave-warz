@@ -29,7 +29,7 @@ async function postBattleToFarcaster(battle: any) {
  * Main Vercel Handler
  * (This preserves the structure from your "main" branch)
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST requests from Supabase webhooks
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -58,3 +58,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
+
+// Named export for Express server compatibility
+export { handler as battleWebhookHandler };
+
+// Default export for Vercel serverless function
+export default handler;

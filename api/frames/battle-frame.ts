@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { supabase } from '../../services/supabaseClient';
+import { supabase } from '../../services/supabaseClient.js';
 
 interface FrameMetadata {
   version: string;

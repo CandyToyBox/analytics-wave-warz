@@ -1,7 +1,7 @@
-import express from 'express';
+import express, { Request, Response, RequestHandler } from 'express';
 import cors from 'cors';
-import { battleWebhookHandler } from './webhooks/battles';
-import { frameHandler, frameImageHandler } from './frames/battle-frame';
+import { battleWebhookHandler } from './webhooks/battles.js';
+import { frameHandler, frameImageHandler } from './frames/battle-frame.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -16,7 +16,9 @@ app.get('/health', (req, res) => {
 });
 
 // Webhook endpoints for Supabase
-app.post('/api/webhooks/battles', battleWebhookHandler);
+// battleWebhookHandler uses Vercel types for serverless deployment, but is runtime-compatible
+// with Express since both share the same underlying Node.js http.IncomingMessage/ServerResponse
+app.post('/api/webhooks/battles', battleWebhookHandler as unknown as RequestHandler);
 
 // Farcaster Frame endpoints
 app.post('/api/frames/battle', frameHandler);
