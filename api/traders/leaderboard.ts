@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
     const offset = parseInt(req.query.offset as string) || 0;
     const sortBy = (req.query.sortBy as string) || 'net_pnl';
-    const order = (req.query.order as string) === 'asc' ? true : false;
+    const order = (req.query.order as string) === 'asc';
 
     const { data, error, count } = await supabase
       .from('trader_leaderboard')

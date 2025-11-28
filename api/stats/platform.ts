@@ -47,8 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let totalVolume = 0;
     let totalPool = 0;
     let totalTradeCount = 0;
-    let uniqueArtists = new Set<string>();
-    let uniqueTraders = 0;
+    const uniqueArtists = new Set<string>();
+    let totalUniqueTraders = 0;
     let largestBattleVolume = 0;
     let largestBattleId = '';
 
@@ -70,7 +70,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       totalVolume += battleVolume;
       totalPool += poolA + poolB;
       totalTradeCount += (battle.trade_count as number) || 0;
-      uniqueTraders = Math.max(uniqueTraders, (battle.unique_traders as number) || 0);
+      // Sum unique traders from each battle (approximation since we don't have full trader data)
+      totalUniqueTraders += (battle.unique_traders as number) || 0;
 
       // Track largest battle
       if (battleVolume > largestBattleVolume) {
@@ -127,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // Participation Stats
         totalArtists: artistCount || uniqueArtists.size,
-        totalTraders: traderCount || 0,
+        totalTraders: traderCount || totalUniqueTraders,
         totalTradeCount,
         
         // Records
