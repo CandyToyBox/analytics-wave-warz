@@ -5,6 +5,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://gshwqoplsxgqbdkssoit.supabase.co';
 const supabaseKey = process.env.VITE_SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
 
+// Constants
+/** Default SOL price in USD used when CoinGecko API is unavailable */
+const DEFAULT_SOL_PRICE_USD = 150;
+/** Multiplier used to estimate trading volume from total value locked (TVL) */
+const VOLUME_ESTIMATION_MULTIPLIER = 10;
+
 /**
  * Unified API Handler
  * This single serverless function handles all WaveWarz API endpoints
@@ -242,13 +248,23 @@ async function handleArtistProfile(
 
   const artistData = artist as Record<string, unknown>;
 
-  const { data: battles } = await supabase
-    .from('battles')
-    .select('*')
-    .or(`artist1_wallet.eq.${walletAddress},artist2_wallet.eq.${walletAddress}`)
-    .order('created_at', { ascending: false });
+  // Query battles separately to avoid SQL injection risks with .or()
+  const [{ data: battlesAsArtist1 }, { data: battlesAsArtist2 }] = await Promise.all([
+    supabase
+      .from('battles')
+      .select('*')
+      .eq('artist1_wallet', walletAddress)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('battles')
+      .select('*')
+      .eq('artist2_wallet', walletAddress)
+      .order('created_at', { ascending: false })
+  ]);
 
-  const battleHistory = (battles || []).map((battle: Record<string, unknown>) => {
+  const battles = [...(battlesAsArtist1 || []), ...(battlesAsArtist2 || [])];
+
+  const battleHistory = battles.map((battle: Record<string, unknown>) => {
     const isArtist1 = battle.artist1_wallet === walletAddress;
     const winnerArtistA = battle.winner_artist_a as boolean;
     const winnerDecided = battle.winner_decided as boolean;
@@ -442,7 +458,7 @@ async function handleTopBattles(
       winner,
       winMargin: winnerPool - loserPool,
       totalTVL,
-      estimatedVolume: totalTVL * 10,
+      estimatedVolume: totalTVL * VOLUME_ESTIMATION_MULTIPLIER,
     };
   });
 
@@ -580,9 +596,9 @@ async function getCurrentSolPrice(): Promise<number> {
     clearTimeout(timeoutId);
 
     const data = await response.json();
-    return data.solana?.usd || 150;
+    return data.solana?.usd || DEFAULT_SOL_PRICE_USD;
   } catch {
     // Return default price on error
-    return 150;
+    return DEFAULT_SOL_PRICE_USD;
   }
 }
