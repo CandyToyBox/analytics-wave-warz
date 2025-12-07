@@ -427,14 +427,14 @@ export default function App() {
             
             <div className="flex justify-between items-center">
               <button onClick={handleBack} className="flex items-center gap-2 text-ui-gray hover:text-white transition-colors text-sm font-medium">
-                <ArrowLeft size={16} /> 
+                <ArrowLeft size={16} />
                 {selectedEvent ? 'Back to Event' : 'Back to Archive'}
               </button>
 
               <div className="flex gap-2">
-                 <a 
-                   href={`https://solscan.io/account/${battle.battleAddress}`} 
-                   target="_blank" 
+                 <a
+                   href={`https://solscan.io/account/${battle.battleAddress}`}
+                   target="_blank"
                    rel="noreferrer"
                    className="flex items-center gap-2 text-xs bg-navy-900 border border-navy-800 text-ui-gray px-3 py-1.5 rounded-full hover:bg-navy-800 hover:text-white transition-colors"
                  >
@@ -447,6 +447,27 @@ export default function App() {
                  </div>
               </div>
             </div>
+
+            {battle.isEnded && (
+              <div className="bg-action-green/10 border-2 border-action-green/30 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="bg-action-green/20 p-2 rounded-lg">
+                    <Trophy className="w-6 h-6 text-action-green" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-action-green font-bold text-sm uppercase tracking-wide">✓ BATTLE COMPLETED</span>
+                    </div>
+                    <div className="text-white font-bold text-lg">
+                      {battle.artistA.name} <span className="text-ui-gray text-sm font-normal">vs</span> {battle.artistB.name}
+                    </div>
+                    <div className="text-sm text-slate-300 mt-1 font-body">
+                      <span className="text-action-green font-bold">{winner === 'A' ? battle.artistA.name : battle.artistB.name}</span> won with a <span className="text-action-green font-bold">+{formatPct((settlement.winMargin / ((winner === 'A' ? battle.artistBSolBalance : battle.artistASolBalance) || 1)) * 100)}</span> margin
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <section className="relative overflow-hidden rounded-3xl border border-navy-800 bg-navy-800/50 p-8 md:p-12">
                <div className="absolute inset-0 z-0">
@@ -472,7 +493,7 @@ export default function App() {
                     <div className="text-xs text-wave-blue text-opacity-80 font-mono">
                        {formatUsd(battle.artistASolBalance, solPrice)}
                     </div>
-                    <div className="text-xs text-wave-blue/70 uppercase tracking-widest mt-1 font-bold">Total Value Locked</div>
+                    <div className="text-xs text-wave-blue/70 uppercase tracking-widest mt-1 font-bold">Final Pool Value</div>
                     <div className="flex gap-2 mt-3">
                       {battle.artistA.twitter && (
                         <a href={`https://twitter.com/${battle.artistA.twitter}`} target="_blank" rel="noreferrer" className="p-2 bg-navy-900 rounded-full hover:bg-sky-500 hover:text-white transition-colors text-ui-gray">
@@ -521,7 +542,7 @@ export default function App() {
                     <div className="text-xs text-wave-green text-opacity-80 font-mono">
                        {formatUsd(battle.artistBSolBalance, solPrice)}
                     </div>
-                    <div className="text-xs text-wave-green/70 uppercase tracking-widest mt-1 font-bold">Total Value Locked</div>
+                    <div className="text-xs text-wave-green/70 uppercase tracking-widest mt-1 font-bold">Final Pool Value</div>
                     <div className="flex gap-2 mt-3">
                       {battle.artistB.twitter && (
                         <a href={`https://twitter.com/${battle.artistB.twitter}`} target="_blank" rel="noreferrer" className="p-2 bg-navy-900 rounded-full hover:bg-sky-500 hover:text-white transition-colors text-ui-gray">
@@ -539,32 +560,32 @@ export default function App() {
             </section>
 
             <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard 
-                label="Total Volume" 
-                value={formatSol(totalVolume)} 
-                subValue={formatUsd(totalVolume, solPrice)} 
-                icon={<BarChart3 size={20} />} 
+              <StatCard
+                label="Total Trading Volume (Completed)"
+                value={formatSol(totalVolume)}
+                subValue={formatUsd(totalVolume, solPrice)}
+                icon={<BarChart3 size={20} />}
                 colorClass="text-wave-blue"
               />
-              <StatCard 
-                label="Total Trades" 
-                value={battle.tradeCount.toString()} 
-                subValue={`${battle.uniqueTraders} Unique Wallets`} 
-                icon={<TrendingUp size={20} />} 
+              <StatCard
+                label="Trades Executed"
+                value={battle.tradeCount.toString()}
+                subValue={`${battle.uniqueTraders} Unique Wallets`}
+                icon={<TrendingUp size={20} />}
                 colorClass="text-action-green"
               />
-               <StatCard 
-                label="Artist A Volume" 
-                value={formatSol(battle.totalVolumeA)} 
-                subValue={formatUsd(battle.totalVolumeA, solPrice)} 
-                icon={<Activity size={20} />} 
+               <StatCard
+                label={`${battle.artistA.name}'s Trading Volume`}
+                value={formatSol(battle.totalVolumeA)}
+                subValue={formatUsd(battle.totalVolumeA, solPrice)}
+                icon={<Activity size={20} />}
                 colorClass="text-wave-blue"
               />
-               <StatCard 
-                label="Artist B Volume" 
-                value={formatSol(battle.totalVolumeB)} 
-                subValue={formatUsd(battle.totalVolumeB, solPrice)} 
-                icon={<Activity size={20} />} 
+               <StatCard
+                label={`${battle.artistB.name}'s Trading Volume`}
+                value={formatSol(battle.totalVolumeB)}
+                subValue={formatUsd(battle.totalVolumeB, solPrice)}
+                icon={<Activity size={20} />}
                 colorClass="text-wave-green"
               />
             </section>
@@ -577,11 +598,11 @@ export default function App() {
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                       <DollarSign className="w-5 h-5 text-action-green" />
-                      Loser's Pool Distribution
+                      Final Settlement Breakdown
                     </h3>
                     <div className="text-right">
                       <span className="block text-sm text-ui-gray bg-navy-900 px-3 py-1 rounded-lg border border-navy-800">
-                        Total: {formatSol(settlement.loserPoolTotal)}
+                        Total Distributed: {formatSol(settlement.loserPoolTotal)}
                       </span>
                       <span className="text-[10px] text-slate-500 mt-1">{formatUsd(settlement.loserPoolTotal, solPrice)}</span>
                     </div>
@@ -593,19 +614,19 @@ export default function App() {
                     <div className="space-y-4 flex flex-col justify-center font-body">
                       <div className="p-4 bg-navy-950/50 rounded-xl border-l-4 border-action-green">
                         <div className="flex justify-between items-center">
-                          <span className="text-ui-gray text-sm">Winning Traders (40%)</span>
+                          <span className="text-ui-gray text-sm">Winning Traders Received (40%)</span>
                           <span className="text-action-green font-bold font-mono">{formatSol(settlement.toWinningTraders)}</span>
                         </div>
                       </div>
                       <div className="p-4 bg-navy-950/50 rounded-xl border-l-4 border-alert-red">
                         <div className="flex justify-between items-center">
-                          <span className="text-ui-gray text-sm">Losing Traders (50% Retained)</span>
+                          <span className="text-ui-gray text-sm">Losing Traders Retained (50%)</span>
                           <span className="text-alert-red font-bold font-mono">{formatSol(settlement.toLosingTraders)}</span>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-3 bg-navy-950/50 rounded-xl border-l-4 border-wave-green">
-                          <div className="text-slate-500 text-xs mb-1">Win Artist (5%)</div>
+                          <div className="text-slate-500 text-xs mb-1">Winning Artist (5%)</div>
                           <div className="text-wave-green font-mono text-sm">{formatSol(settlement.toWinningArtist)}</div>
                         </div>
                         <div className="p-3 bg-navy-950/50 rounded-xl border-l-4 border-wave-blue">
@@ -619,7 +640,7 @@ export default function App() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-navy-800 border border-navy-700 rounded-2xl p-6 h-80 flex flex-col min-w-0">
-                    <h3 className="text-lg font-bold text-white mb-6">Current TVL Comparison</h3>
+                    <h3 className="text-lg font-bold text-white mb-6">Final Pool Results</h3>
                     <div className="flex-1 w-full min-h-[200px] min-w-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={tvlData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -655,24 +676,24 @@ export default function App() {
                 <RoiCalculator battleState={battle} />
 
                 <div className="bg-navy-800 border border-navy-700 rounded-2xl p-6">
-                   <h3 className="text-lg font-bold text-white mb-4">Total Fee Revenue</h3>
+                   <h3 className="text-lg font-bold text-white mb-4">Artist Earnings</h3>
                    <div className="space-y-4">
                       <div className="flex justify-between items-center py-2 border-b border-navy-700">
-                        <span className="text-ui-gray text-sm font-body">Artist A Earned</span>
+                        <span className="text-ui-gray text-sm font-body">{battle.artistA.name} Earned</span>
                         <div className="text-right">
                           <span className="block text-wave-blue font-mono">{formatSol(settlement.artistAEarnings)}</span>
                           <span className="text-[10px] text-slate-500">{formatUsd(settlement.artistAEarnings, solPrice)}</span>
                         </div>
                       </div>
                       <div className="flex justify-between items-center py-2 border-b border-navy-700">
-                        <span className="text-ui-gray text-sm font-body">Artist B Earned</span>
+                        <span className="text-ui-gray text-sm font-body">{battle.artistB.name} Earned</span>
                         <div className="text-right">
                           <span className="block text-wave-green font-mono">{formatSol(settlement.artistBEarnings)}</span>
                           <span className="text-[10px] text-slate-500">{formatUsd(settlement.artistBEarnings, solPrice)}</span>
                         </div>
                       </div>
                       <div className="flex justify-between items-center py-2">
-                        <span className="text-ui-gray text-sm font-body">Platform Revenue</span>
+                        <span className="text-ui-gray text-sm font-body">Platform Earned</span>
                         <div className="text-right">
                            <span className="block text-indigo-400 font-mono">{formatSol(settlement.platformEarnings)}</span>
                            <span className="text-[10px] text-slate-500">{formatUsd(settlement.platformEarnings, solPrice)}</span>
@@ -680,7 +701,7 @@ export default function App() {
                       </div>
                    </div>
                    <div className="mt-4 p-3 bg-wave-blue/10 rounded-lg text-xs text-wave-blue leading-relaxed font-body">
-                     Fees are calculated from 1% volume + settlement bonuses.
+                     Earnings calculated from 1% trading fees + settlement bonuses.
                    </div>
                 </div>
 

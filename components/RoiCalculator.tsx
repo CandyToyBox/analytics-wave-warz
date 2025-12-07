@@ -29,35 +29,38 @@ export const RoiCalculator: React.FC<Props> = ({ battleState }) => {
 
   return (
     <div className="bg-navy-800 border border-navy-700 rounded-2xl p-6">
-      <div className="flex items-center gap-2 mb-6 border-b border-navy-700 pb-4">
-        <Calculator className="w-5 h-5 text-wave-blue" />
-        <h3 className="text-lg font-bold text-white">Settlement Simulator</h3>
+      <div className="flex flex-col gap-2 mb-6 border-b border-navy-700 pb-4">
+        <div className="flex items-center gap-2">
+          <Calculator className="w-5 h-5 text-wave-blue" />
+          <h3 className="text-lg font-bold text-white">What If You Had Invested?</h3>
+        </div>
+        <p className="text-xs text-ui-gray font-body">Hypothetical returns calculator</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-uppercase text-ui-gray mb-1">Select Side</label>
+            <label className="block text-xs font-uppercase text-ui-gray mb-1">Select Artist</label>
             <div className="flex bg-navy-900 p-1 rounded-lg border border-navy-700">
               <button
                 onClick={() => setSide('A')}
                 className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${
-                  side === 'A' 
-                    ? 'bg-wave-blue/20 text-wave-blue border border-wave-blue/50' 
+                  side === 'A'
+                    ? 'bg-wave-blue/20 text-wave-blue border border-wave-blue/50'
                     : 'text-ui-gray hover:text-white'
                 }`}
               >
-                Artist A
+                {battleState.artistA.name}
               </button>
               <button
                 onClick={() => setSide('B')}
                 className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${
-                  side === 'B' 
-                    ? 'bg-wave-green/20 text-wave-green border border-wave-green/50' 
+                  side === 'B'
+                    ? 'bg-wave-green/20 text-wave-green border border-wave-green/50'
                     : 'text-ui-gray hover:text-white'
                 }`}
               >
-                Artist B
+                {battleState.artistB.name}
               </button>
             </div>
           </div>
@@ -92,7 +95,7 @@ export const RoiCalculator: React.FC<Props> = ({ battleState }) => {
         <div className="flex flex-col justify-center">
           <div className={`p-4 rounded-xl border-2 ${isProfit ? 'bg-action-green/10 border-action-green/30' : 'bg-alert-red/10 border-alert-red/30'}`}>
             <div className="text-center mb-1">
-              <span className="text-xs text-ui-gray uppercase tracking-wider">Projected Return</span>
+              <span className="text-xs text-ui-gray uppercase tracking-wider">You Would Have Received</span>
             </div>
             <div className={`text-3xl font-bold text-center mb-1 ${isProfit ? 'text-action-green' : 'text-alert-red'}`}>
               {formatPct(result.roi)}
@@ -100,14 +103,14 @@ export const RoiCalculator: React.FC<Props> = ({ battleState }) => {
             <div className="text-center text-slate-300 font-mono text-sm mb-4">
               {formatSol(result.payout)}
             </div>
-            
+
             <div className="space-y-2 border-t border-navy-700/50 pt-3">
               <div className="flex justify-between text-xs">
-                <span className="text-ui-gray">Initial:</span>
+                <span className="text-ui-gray">Initial Investment:</span>
                 <span className="text-slate-200">{formatSol(investment)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-ui-gray">Net PnL:</span>
+                <span className="text-ui-gray">Would Have Earned:</span>
                 <span className={isProfit ? 'text-action-green' : 'text-alert-red'}>
                   {isProfit ? '+' : ''}{formatSol(result.profit)}
                 </span>
