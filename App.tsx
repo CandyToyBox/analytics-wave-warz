@@ -44,15 +44,10 @@ import { fetchBattlesFromSupabase } from './services/supabaseClient';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // --- FILTER LOGIC ---
+// Since we now filter by is_test_battle in the database query,
+// we only need basic validation here
 const isValidBattle = (b: BattleSummary): boolean => {
   if (b.isCommunityBattle) return true;
-  if (!b.imageUrl || b.imageUrl.trim() === '' || b.imageUrl === 'null') return false;
-  const isTestName = (name: string) => {
-    return name.includes('Artist ') && /\d/.test(name) && name.length < 20; 
-  };
-  if (isTestName(b.artistA.name) || isTestName(b.artistB.name)) return false;
-  if (b.artistA.name.includes("Unknown") || b.artistB.name.includes("Unknown")) return false;
-  if (b.artistA.name.includes("Unlisted") || b.artistB.name.includes("Unlisted")) return false;
   if (!b.artistA.wallet || !b.artistB.wallet) return false;
   return true;
 };
