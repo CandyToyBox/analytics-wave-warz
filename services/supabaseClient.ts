@@ -67,6 +67,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
       creatorWallet: row.creator_wallet,
       isCommunityBattle: row.is_community_battle,
       communityRoundId: row.community_round_id,
+      isTestBattle: row.is_test_battle || false,
       
       // Dynamic Stats from Cache (if available in DB schema)
       totalVolumeA: row.total_volume_a || 0,
@@ -133,6 +134,7 @@ export async function uploadBattlesToSupabase(battles: BattleSummary[]) {
       
       is_community_battle: b.isCommunityBattle,
       community_round_id: b.communityRoundId,
+      is_test_battle: b.isTestBattle || false,
 
       // Preserve existing if possible, but map for initial upload
       total_volume_a: b.totalVolumeA || 0,

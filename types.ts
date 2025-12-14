@@ -30,6 +30,7 @@ export interface BattleSummary {
   creatorWallet?: string;
   isCommunityBattle?: boolean;
   communityRoundId?: string;
+  isTestBattle?: boolean;
 
   // --- CACHED DYNAMIC DATA ---
   totalVolumeA?: number;
