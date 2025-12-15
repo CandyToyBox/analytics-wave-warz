@@ -31,6 +31,9 @@ export interface BattleSummary {
   isCommunityBattle?: boolean;
   communityRoundId?: string;
   isTestBattle?: boolean;
+  isQuickBattle?: boolean;
+  quickBattleQueueId?: string;
+  splitWalletAddress?: string;
 
   // --- CACHED DYNAMIC DATA ---
   totalVolumeA?: number;
