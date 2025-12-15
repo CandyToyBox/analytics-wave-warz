@@ -29,25 +29,25 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     // Check environment variables
     console.log('\n🔐 Environment Check:');
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_KEY;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     console.log('   VITE_SUPABASE_URL exists:', !!supabaseUrl);
-    console.log('   VITE_SUPABASE_KEY exists:', !!supabaseKey);
+    console.log('   SUPABASE_SERVICE_ROLE_KEY exists:', !!supabaseServiceKey);
     console.log('   URL value:', supabaseUrl || 'MISSING');
     
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       console.log('❌ CRITICAL: Environment variables missing!');
       return res.status(200).json({ 
         success: false,
         error: 'Missing environment variables',
         supabaseUrl: !!supabaseUrl,
-        supabaseKey: !!supabaseKey
+        supabaseServiceKey: !!supabaseServiceKey
       });
     }
 
     // Initialize Supabase client
     console.log('\n🔌 Initializing Supabase client...');
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     console.log('✅ Supabase client created');
 
     // Filter table
