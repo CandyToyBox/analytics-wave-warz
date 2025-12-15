@@ -235,7 +235,7 @@ export const getBattleLibrary = (): BattleSummary[] => {
     const hasExtendedColumns = cols.length > IDX.isTestBattle;
     const isQuickBattle = hasExtendedColumns ? cols[IDX.isQuickBattle] === 'true' : false;
     const quickBattleQueueId = cols.length > IDX.quickBattleQueueId ? getValue(cols, IDX.quickBattleQueueId) : undefined;
-    const isTestBattle = hasExtendedColumns ? cols[IDX.isTestBattle] === 'true' : cols[IDX.isQuickBattle] === 'true';
+    const isTestBattle = hasExtendedColumns ? cols[IDX.isTestBattle] === 'true' : cols[cols.length - 1] === 'true';
     
     const battle: BattleSummary = {
       id: cols[IDX.id],
