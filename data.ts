@@ -249,7 +249,7 @@ export const getBattleLibrary = (): BattleSummary[] => {
         avatar: cols[IDX.imageUrl],
         wallet: cols[IDX.artist1Wallet],
         musicLink: getValue(cols, IDX.artist1Music),
-        twitter: cols[IDX.artist1Twitter] !== 'null' ? cols[IDX.artist1Twitter] : undefined
+        twitter: getValue(cols, IDX.artist1Twitter)
       },
       artistB: {
         id: 'B',
@@ -258,7 +258,7 @@ export const getBattleLibrary = (): BattleSummary[] => {
         avatar: cols[IDX.imageUrl],
         wallet: cols[IDX.artist2Wallet],
         musicLink: getValue(cols, IDX.artist2Music),
-        twitter: cols[IDX.artist2Twitter] !== 'null' ? cols[IDX.artist2Twitter] : undefined
+        twitter: getValue(cols, IDX.artist2Twitter)
       },
       battleDuration: parseInt(cols[IDX.battleDuration] || '0'),
       winnerDecided: cols[IDX.winnerDecided] === 'true',
