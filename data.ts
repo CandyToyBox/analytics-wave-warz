@@ -197,6 +197,32 @@ export const getBattleLibrary = (): BattleSummary[] => {
     return value && value !== 'null' ? value : undefined;
   };
 
+  const IDX = {
+    id: 0,
+    battleId: 1,
+    createdAt: 2,
+    status: 3,
+    artist1Name: 4,
+    artist2Name: 5,
+    artist1Wallet: 6,
+    artist2Wallet: 7,
+    artist1Music: 9,
+    artist2Music: 10,
+    imageUrl: 11,
+    battleDuration: 16,
+    winnerDecided: 17,
+    artist1Twitter: 19,
+    artist2Twitter: 20,
+    streamLink: 21,
+    creatorWallet: 22,
+    splitWalletAddress: 23,
+    isCommunityBattle: 24,
+    communityRoundId: 25,
+    isQuickBattle: 26,
+    quickBattleQueueId: 27,
+    isTestBattle: 28
+  } as const;
+
   const lines = RAW_CSV.split('\n');
   const battles: BattleSummary[] = [];
 
@@ -206,42 +232,42 @@ export const getBattleLibrary = (): BattleSummary[] => {
     
     const cols = parseCsvLine(line);
 
-    const hasExtendedColumns = cols.length > 28;
-    const isQuickBattle = hasExtendedColumns ? cols[26] === 'true' : false;
-    const quickBattleQueueId = cols.length > 27 ? getValue(cols, 27) : undefined;
-    const isTestBattle = hasExtendedColumns ? cols[28] === 'true' : cols[26] === 'true';
+    const hasExtendedColumns = cols.length > IDX.isTestBattle;
+    const isQuickBattle = hasExtendedColumns ? cols[IDX.isQuickBattle] === 'true' : false;
+    const quickBattleQueueId = cols.length > IDX.quickBattleQueueId ? getValue(cols, IDX.quickBattleQueueId) : undefined;
+    const isTestBattle = hasExtendedColumns ? cols[IDX.isTestBattle] === 'true' : cols[IDX.isQuickBattle] === 'true';
     
     const battle: BattleSummary = {
-      id: cols[0],
-      battleId: cols[1],
-      createdAt: cols[2],
-      status: cols[3],
+      id: cols[IDX.id],
+      battleId: cols[IDX.battleId],
+      createdAt: cols[IDX.createdAt],
+      status: cols[IDX.status],
       artistA: {
         id: 'A',
-        name: cols[4],
+        name: cols[IDX.artist1Name],
         color: '#22B5E8', // Wave Blue
-        avatar: cols[11],
-        wallet: cols[6],
-        musicLink: cols[9] !== 'null' ? cols[9] : undefined,
-        twitter: cols[19] !== 'null' ? cols[19] : undefined
+        avatar: cols[IDX.imageUrl],
+        wallet: cols[IDX.artist1Wallet],
+        musicLink: getValue(cols, IDX.artist1Music),
+        twitter: cols[IDX.artist1Twitter] !== 'null' ? cols[IDX.artist1Twitter] : undefined
       },
       artistB: {
         id: 'B',
-        name: cols[5],
+        name: cols[IDX.artist2Name],
         color: '#6FF34B', // Wave Green
-        avatar: cols[11],
-        wallet: cols[7],
-        musicLink: cols[10] !== 'null' ? cols[10] : undefined,
-        twitter: cols[20] !== 'null' ? cols[20] : undefined
+        avatar: cols[IDX.imageUrl],
+        wallet: cols[IDX.artist2Wallet],
+        musicLink: getValue(cols, IDX.artist2Music),
+        twitter: cols[IDX.artist2Twitter] !== 'null' ? cols[IDX.artist2Twitter] : undefined
       },
-      battleDuration: parseInt(cols[16] || '0'),
-      winnerDecided: cols[17] === 'true',
-      imageUrl: cols[11],
-      streamLink: getValue(cols, 21),
-      creatorWallet: getValue(cols, 22),
-      splitWalletAddress: getValue(cols, 23),
-      isCommunityBattle: cols[24] === 'true',
-      communityRoundId: getValue(cols, 25),
+      battleDuration: parseInt(cols[IDX.battleDuration] || '0'),
+      winnerDecided: cols[IDX.winnerDecided] === 'true',
+      imageUrl: cols[IDX.imageUrl],
+      streamLink: getValue(cols, IDX.streamLink),
+      creatorWallet: getValue(cols, IDX.creatorWallet),
+      splitWalletAddress: getValue(cols, IDX.splitWalletAddress),
+      isCommunityBattle: cols[IDX.isCommunityBattle] === 'true',
+      communityRoundId: getValue(cols, IDX.communityRoundId),
       isQuickBattle,
       quickBattleQueueId,
       isTestBattle
