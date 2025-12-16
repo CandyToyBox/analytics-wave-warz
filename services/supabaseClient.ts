@@ -116,9 +116,9 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
               : undefined);
 
       return {
-        id: row.id?.toString?.() || row.queue_id?.toString?.() || row.battle_id?.toString?.() || `quick-${index}`,
-        queueId: row.queue_id ? row.queue_id.toString() : undefined,
-        battleId: row.battle_id ? row.battle_id.toString() : undefined,
+        id: row.id ? String(row.id) : row.queue_id ? String(row.queue_id) : row.battle_id ? String(row.battle_id) : `quick-${index}`,
+        queueId: row.queue_id ? String(row.queue_id) : undefined,
+        battleId: row.battle_id ? String(row.battle_id) : undefined,
         createdAt: row.created_at,
         status: row.status,
         artist1Handle: row.artist1_handle || row.quick_battle_artist1_audius_handle,

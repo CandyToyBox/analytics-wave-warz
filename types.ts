@@ -37,8 +37,8 @@ export interface BattleSummary {
   quickBattleArtist2Handle?: string;
   quickBattleArtist1ProfilePic?: string;
   quickBattleArtist2ProfilePic?: string;
-  quickBattleArtist1Profile?: any;
-  quickBattleArtist2Profile?: any;
+  quickBattleArtist1Profile?: Record<string, unknown>;
+  quickBattleArtist2Profile?: Record<string, unknown>;
   winnerArtistA?: boolean;
   splitWalletAddress?: string;
 

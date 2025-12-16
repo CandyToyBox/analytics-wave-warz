@@ -15,6 +15,31 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
 
+  const mapFallback = useMemo(() => {
+    return () => {
+      const quickBattles = battles.filter(b => b.isQuickBattle);
+      return quickBattles.map((b, index) => ({
+        id: b.id || `quick-${index}`,
+        queueId: b.quickBattleQueueId,
+        battleId: b.battleId,
+        createdAt: b.createdAt,
+        status: b.status,
+        artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
+        artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
+        artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
+        artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
+        artist1Score: b.artistASolBalance || 0,
+        artist2Score: b.artistBSolBalance || 0,
+        totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
+        winnerHandle: b.winnerDecided
+          ? ((b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0))) 
+              ? (b.quickBattleArtist1Handle || b.artistA.name) 
+              : (b.quickBattleArtist2Handle || b.artistB.name))
+          : undefined,
+      }));
+    };
+  }, [battles]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -26,51 +51,13 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           return;
         }
 
-        const quickBattles = battles.filter(b => b.isQuickBattle);
-        const fallback = quickBattles.map((b, index) => ({
-          id: b.id || `quick-${index}`,
-          queueId: b.quickBattleQueueId,
-          battleId: b.battleId,
-          createdAt: b.createdAt,
-          status: b.status,
-          artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
-          artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
-          artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
-          artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
-          artist1Score: b.artistASolBalance || 0,
-          artist2Score: b.artistBSolBalance || 0,
-          totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
-          winnerHandle: b.winnerDecided
-            ? ((b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0))) 
-                ? (b.quickBattleArtist1Handle || b.artistA.name) 
-                : (b.quickBattleArtist2Handle || b.artistB.name))
-            : undefined,
-        }));
+        const fallback = mapFallback();
 
         setEntries(fallback);
         setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
       } catch (e) {
         console.warn("Quick battle leaderboard fetch failed", e);
-        const quickBattles = battles.filter(b => b.isQuickBattle);
-        const fallback = quickBattles.map((b, index) => ({
-          id: b.id || `quick-${index}`,
-          queueId: b.quickBattleQueueId,
-          battleId: b.battleId,
-          createdAt: b.createdAt,
-          status: b.status,
-          artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
-          artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
-          artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
-          artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
-          artist1Score: b.artistASolBalance || 0,
-          artist2Score: b.artistBSolBalance || 0,
-          totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
-          winnerHandle: b.winnerDecided
-            ? ((b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0))) 
-                ? (b.quickBattleArtist1Handle || b.artistA.name) 
-                : (b.quickBattleArtist2Handle || b.artistB.name))
-            : undefined,
-        }));
+        const fallback = mapFallback();
 
         setEntries(fallback);
         setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
