@@ -90,8 +90,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
   } catch (err: any) {
     const errorMessage = typeof err === 'object' ? JSON.stringify(err, null, 2) : String(err);
     console.warn("Supabase connection failed (using fallback):", errorMessage);
-    return null;
   }
+  return null;
 }
 
 export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
