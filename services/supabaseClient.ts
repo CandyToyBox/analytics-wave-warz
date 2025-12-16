@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats } from '../types';
+import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats, QuickBattleArtistStats } from '../types';
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
@@ -286,5 +286,74 @@ export async function saveTraderLeaderboardToDB(traders: TraderLeaderboardEntry[
     console.log("Trader Leaderboard Saved!");
   } catch (e) {
     console.error("Failed to save trader stats", e);
+  }
+}
+
+// --- QUICK BATTLE LEADERBOARD CACHE ---
+
+export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleArtistStats[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('quick_battle_leaderboard')
+      .select('*')
+      .eq('is_test_artist', false)
+      .order('total_volume_generated', { ascending: false });
+
+    if (error || !data || data.length === 0) return null;
+
+    return data.map((row: any) => ({
+      audiusHandle: row.audius_handle,
+      trackName: row.track_name,
+      audiusProfilePic: row.audius_profile_pic,
+      audiusProfileUrl: row.audius_profile_url,
+      battlesParticipated: row.battles_participated,
+      wins: row.wins,
+      losses: row.losses,
+      winRate: row.win_rate,
+      totalVolumeGenerated: row.total_volume_generated,
+      avgVolumePerBattle: row.avg_volume_per_battle,
+      peakPoolSize: row.peak_pool_size,
+      totalTrades: row.total_trades || 0,
+      uniqueTraders: row.unique_traders || 0,
+      firstBattleDate: row.first_battle_date,
+      lastBattleDate: row.last_battle_date,
+      isTestArtist: row.is_test_artist || false,
+    }));
+  } catch (e) {
+    console.warn("Failed to fetch Quick Battle leaderboard", e);
+    return null;
+  }
+}
+
+export async function saveQuickBattleLeaderboardToDB(stats: QuickBattleArtistStats[]) {
+  try {
+    const rows = stats.map(s => ({
+      audius_handle: s.audiusHandle,
+      track_name: s.trackName,
+      audius_profile_pic: s.audiusProfilePic,
+      audius_profile_url: s.audiusProfileUrl,
+      battles_participated: s.battlesParticipated,
+      wins: s.wins,
+      losses: s.losses,
+      win_rate: s.winRate,
+      total_volume_generated: s.totalVolumeGenerated,
+      avg_volume_per_battle: s.avgVolumePerBattle,
+      peak_pool_size: s.peakPoolSize,
+      total_trades: s.totalTrades,
+      unique_traders: s.uniqueTraders,
+      first_battle_date: s.firstBattleDate,
+      last_battle_date: s.lastBattleDate,
+      is_test_artist: s.isTestArtist,
+      updated_at: new Date().toISOString()
+    }));
+
+    const { error } = await supabase
+      .from('quick_battle_leaderboard')
+      .upsert(rows, { onConflict: 'audius_handle' });
+
+    if (error) throw error;
+    console.log("Quick Battle Leaderboard Saved!");
+  } catch (e) {
+    console.error("Failed to save Quick Battle leaderboard", e);
   }
 }

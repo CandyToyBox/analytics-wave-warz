@@ -32,6 +32,7 @@ import { EventGrid } from './components/EventGrid';
 import { Leaderboard } from './components/Leaderboard';
 import { TraderLeaderboard } from './components/TraderLeaderboard';
 import { ArtistLeaderboard } from './components/ArtistLeaderboard';
+import { QuickBattleLeaderboard } from './components/QuickBattleLeaderboard';
 import { WhaleTicker } from './components/WhaleTicker';
 import { MomentumGauge } from './components/MomentumGauge';
 import { ShareButton } from './components/ShareButton';
@@ -54,7 +55,7 @@ const isValidBattle = (b: BattleSummary): boolean => {
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'grid' | 'events' | 'dashboard' | 'replay' | 'leaderboard' | 'trader'>('grid');
-  const [leaderboardTab, setLeaderboardTab] = useState<'artists' | 'traders'>('artists');
+  const [leaderboardTab, setLeaderboardTab] = useState<'artists' | 'traders' | 'quickbattle'>('artists');
   const [selectedBattle, setSelectedBattle] = useState<BattleState | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<BattleEvent | null>(null);
   const [traderStats, setTraderStats] = useState<TraderProfileStats | null>(null);
@@ -381,23 +382,33 @@ export default function App() {
            <div className="space-y-6">
               <div className="flex items-center justify-between mb-2">
                  <h2 className="text-2xl font-bold text-white">Global Leaderboard</h2>
-                 
+
                  <div className="bg-navy-900 p-1 rounded-lg border border-navy-800 flex gap-1">
-                   <button 
+                   <button
                      onClick={() => setLeaderboardTab('artists')}
                      className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${
-                       leaderboardTab === 'artists' 
-                         ? 'bg-navy-800 text-white shadow-sm' 
+                       leaderboardTab === 'artists'
+                         ? 'bg-navy-800 text-white shadow-sm'
                          : 'text-ui-gray hover:text-slate-300'
                      }`}
                    >
                      Artists
                    </button>
-                   <button 
+                   <button
+                     onClick={() => setLeaderboardTab('quickbattle')}
+                     className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${
+                       leaderboardTab === 'quickbattle'
+                         ? 'bg-wave-blue text-navy-950 shadow-sm'
+                         : 'text-ui-gray hover:text-slate-300'
+                     }`}
+                   >
+                     Quick Battles
+                   </button>
+                   <button
                      onClick={() => setLeaderboardTab('traders')}
                      className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${
-                       leaderboardTab === 'traders' 
-                         ? 'bg-wave-blue text-navy-950 shadow-sm' 
+                       leaderboardTab === 'traders'
+                         ? 'bg-wave-green text-navy-950 shadow-sm'
                          : 'text-ui-gray hover:text-slate-300'
                      }`}
                    >
@@ -405,9 +416,11 @@ export default function App() {
                    </button>
                  </div>
               </div>
-              
+
               {leaderboardTab === 'artists' ? (
                 <ArtistLeaderboard battles={validLibrary} solPrice={solPrice} />
+              ) : leaderboardTab === 'quickbattle' ? (
+                <QuickBattleLeaderboard solPrice={solPrice} />
               ) : (
                 <TraderLeaderboard battles={validLibrary} onSelectTrader={handleSelectTrader} solPrice={solPrice} />
               )}

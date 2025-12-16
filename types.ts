@@ -239,3 +239,23 @@ export interface TraderLeaderboardEntry {
   losses: number;
   winRate: number;
 }
+
+// Quick Battle Leaderboard Types
+export interface QuickBattleArtistStats {
+  audiusHandle: string;
+  trackName: string;
+  audiusProfilePic?: string;
+  audiusProfileUrl?: string;
+  battlesParticipated: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalVolumeGenerated: number;
+  avgVolumePerBattle: number;
+  peakPoolSize: number;
+  totalTrades: number;
+  uniqueTraders: number;
+  firstBattleDate?: string;
+  lastBattleDate?: string;
+  isTestArtist: boolean;
+}
