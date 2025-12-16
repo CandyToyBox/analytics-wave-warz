@@ -31,6 +31,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
         artist1Score: b.artistASolBalance || 0,
         artist2Score: b.artistBSolBalance || 0,
         totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
+        // Prefer explicit winner flag, otherwise fall back to balance comparison
         winnerHandle: (() => {
           if (!b.winnerDecided) return undefined;
           const artistAIsWinner = b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0));
@@ -79,8 +80,8 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
         !q || 
         entry.artist1Handle?.toLowerCase().includes(q) || 
         entry.artist2Handle?.toLowerCase().includes(q) || 
-        entry.queueId?.toString().includes(q) ||
-        entry.battleId?.toString().includes(q)
+        entry.queueId?.toLowerCase().includes(q) ||
+        entry.battleId?.toLowerCase().includes(q)
       )
       .sort((a, b) => (b.totalVolume || 0) - (a.totalVolume || 0));
   }, [entries, search]);

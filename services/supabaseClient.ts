@@ -112,6 +112,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         if (row.id) return String(row.id);
         if (row.queue_id) return String(row.queue_id);
         if (row.battle_id) return String(row.battle_id);
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
         return `quick-${Date.now()}-${index}`;
       };
 
