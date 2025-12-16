@@ -137,7 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             last_scanned_at: record.last_scanned_at,
             recent_trades_cache: record.recent_trades_cache,
           },
-          { onConflict: 'id', ignoreDuplicates: true }
+          { onConflict: 'id' }
         );
 
       if (error) {
