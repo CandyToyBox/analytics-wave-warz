@@ -69,7 +69,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     };
 
     load();
-  }, [battles]);
+  }, [battles, mapFallback]);
 
   const filteredEntries = useMemo(() => {
     const q = search.toLowerCase();
