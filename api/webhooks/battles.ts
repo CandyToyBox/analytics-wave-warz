@@ -113,7 +113,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           is_test_battle: record.is_test_battle || false,
           is_community_battle: record.is_community_battle || false,
           community_round_id: record.community_round_id,
-          quick_battle_queue_id: record.quick_battle_queue_id,
+          
+          // Handle quick_battle_queue_id: BIGINT column but receives UUID strings
+          // If it's a UUID (contains hyphens), set to NULL, otherwise use the value
+          quick_battle_queue_id: (record.quick_battle_queue_id && typeof record.quick_battle_queue_id === 'string' && record.quick_battle_queue_id.includes('-')) 
+            ? null 
+            : record.quick_battle_queue_id,
 
           // Quick Battle - Audius data
           quick_battle_artist1_audius_handle: record.quick_battle_artist1_audius_handle,
