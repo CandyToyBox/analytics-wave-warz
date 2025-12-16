@@ -73,69 +73,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { data, error } = await supabase
         .from('battles')
-        .insert({
-          // Core identifiers
-          id: record.id,
-          battle_id: record.battle_id,
-          created_at: record.created_at,
-          status: record.status || 'Active',
+        .upsert(
+          {
+            // Core identifiers
+            id: record.id,
+            battle_id: record.battle_id,
+            created_at: record.created_at,
+            status: record.status || 'Active',
 
-          // Artist information
-          artist1_name: record.artist1_name,
-          artist2_name: record.artist2_name,
-          artist1_wallet: record.artist1_wallet,
-          artist2_wallet: record.artist2_wallet,
-          artist1_twitter: record.artist1_twitter,
-          artist2_twitter: record.artist2_twitter,
-          artist1_music_link: record.artist1_music_link,
-          artist2_music_link: record.artist2_music_link,
+            // Artist information
+            artist1_name: record.artist1_name,
+            artist2_name: record.artist2_name,
+            artist1_wallet: record.artist1_wallet,
+            artist2_wallet: record.artist2_wallet,
+            artist1_twitter: record.artist1_twitter,
+            artist2_twitter: record.artist2_twitter,
+            artist1_music_link: record.artist1_music_link,
+            artist2_music_link: record.artist2_music_link,
 
-          // Trading stats (initially 0, updated later)
-          artist1_pool: record.artist1_pool || 0,
-          artist2_pool: record.artist2_pool || 0,
-          artist1_supply: record.artist1_supply || 0,
-          artist2_supply: record.artist2_supply || 0,
-          total_volume_a: record.total_volume_a || 0,
-          total_volume_b: record.total_volume_b || 0,
-          trade_count: record.trade_count || 0,
-          unique_traders: record.unique_traders || 0,
+            // Trading stats (initially 0, updated later)
+            artist1_pool: record.artist1_pool || 0,
+            artist2_pool: record.artist2_pool || 0,
+            artist1_supply: record.artist1_supply || 0,
+            artist2_supply: record.artist2_supply || 0,
+            total_volume_a: record.total_volume_a || 0,
+            total_volume_b: record.total_volume_b || 0,
+            trade_count: record.trade_count || 0,
+            unique_traders: record.unique_traders || 0,
 
-          // Battle metadata
-          wavewarz_wallet: record.wavewarz_wallet,
-          creator_wallet: record.creator_wallet,
-          split_wallet_address: record.split_wallet_address,
-          image_url: record.image_url,
-          stream_link: record.stream_link,
-          battle_duration: record.battle_duration || 600,
+            // Battle metadata
+            wavewarz_wallet: record.wavewarz_wallet,
+            creator_wallet: record.creator_wallet,
+            split_wallet_address: record.split_wallet_address,
+            image_url: record.image_url,
+            stream_link: record.stream_link,
+            battle_duration: record.battle_duration || 600,
 
-          // Battle types
-          is_quick_battle: record.is_quick_battle || false,
-          is_test_battle: record.is_test_battle || false,
-          is_community_battle: record.is_community_battle || false,
-          community_round_id: record.community_round_id,
-          
-          // Handle quick_battle_queue_id: BIGINT column but receives UUID strings
-          // If it's a UUID (contains hyphens), set to NULL, otherwise use the value
-          quick_battle_queue_id: (record.quick_battle_queue_id && typeof record.quick_battle_queue_id === 'string' && record.quick_battle_queue_id.includes('-')) 
-            ? null 
-            : record.quick_battle_queue_id,
+            // Battle types
+            is_quick_battle: record.is_quick_battle || false,
+            is_test_battle: record.is_test_battle || false,
+            is_community_battle: record.is_community_battle || false,
+            community_round_id: record.community_round_id,
+            
+            // Handle quick_battle_queue_id: BIGINT column but receives UUID strings
+            // If it's a UUID (contains hyphens), set to NULL, otherwise use the value
+            quick_battle_queue_id: (record.quick_battle_queue_id && typeof record.quick_battle_queue_id === 'string' && record.quick_battle_queue_id.includes('-')) 
+              ? null 
+              : record.quick_battle_queue_id,
 
-          // Quick Battle - Audius data
-          quick_battle_artist1_audius_handle: record.quick_battle_artist1_audius_handle,
-          quick_battle_artist2_audius_handle: record.quick_battle_artist2_audius_handle,
-          quick_battle_artist1_profile: record.quick_battle_artist1_profile,
-          quick_battle_artist2_profile: record.quick_battle_artist2_profile,
-          quick_battle_artist1_audius_profile_pic: record.quick_battle_artist1_audius_profile_pic,
-          quick_battle_artist2_audius_profile_pic: record.quick_battle_artist2_audius_profile_pic,
+            // Quick Battle - Audius data
+            quick_battle_artist1_audius_handle: record.quick_battle_artist1_audius_handle,
+            quick_battle_artist2_audius_handle: record.quick_battle_artist2_audius_handle,
+            quick_battle_artist1_profile: record.quick_battle_artist1_profile,
+            quick_battle_artist2_profile: record.quick_battle_artist2_profile,
+            quick_battle_artist1_audius_profile_pic: record.quick_battle_artist1_audius_profile_pic,
+            quick_battle_artist2_audius_profile_pic: record.quick_battle_artist2_audius_profile_pic,
 
-          // Winner info (updated later)
-          winner_decided: record.winner_decided || false,
-          winner_artist_a: record.winner_artist_a,
+            // Winner info (updated later)
+            winner_decided: record.winner_decided || false,
+            winner_artist_a: record.winner_artist_a,
 
-          // Timestamps
-          last_scanned_at: record.last_scanned_at,
-          recent_trades_cache: record.recent_trades_cache,
-        });
+            // Timestamps
+            last_scanned_at: record.last_scanned_at,
+            recent_trades_cache: record.recent_trades_cache,
+          },
+          { onConflict: 'id', ignoreDuplicates: true }
+        );
 
       if (error) {
         console.error('❌ INSERT failed:', error);
