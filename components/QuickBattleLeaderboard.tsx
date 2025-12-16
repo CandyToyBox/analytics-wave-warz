@@ -61,10 +61,9 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
 
         setEntries(fallback);
         setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
+      } finally {
+        setLoading(false);
       }
-    finally {
-      setLoading(false);
-    }
 
     };
 

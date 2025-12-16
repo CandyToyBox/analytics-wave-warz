@@ -107,16 +107,23 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       const artist1Score = row.artist1_volume ?? row.artist1_votes ?? row.artist1_score ?? row.total_volume_a;
       const artist2Score = row.artist2_volume ?? row.artist2_votes ?? row.artist2_score ?? row.total_volume_b;
       const totalVolume = row.total_volume ?? ((artist1Score || 0) + (artist2Score || 0));
-      const winnerHandle = row.winner_handle 
-        || row.winner 
-        || (row.winner_artist_a === true 
-            ? (row.artist1_handle || row.quick_battle_artist1_audius_handle) 
-            : row.winner_artist_a === false 
-              ? (row.artist2_handle || row.quick_battle_artist2_audius_handle) 
-              : undefined);
+      const resolveId = () => {
+        if (row.id) return String(row.id);
+        if (row.queue_id) return String(row.queue_id);
+        if (row.battle_id) return String(row.battle_id);
+        return `quick-${index}`;
+      };
+
+      const winnerHandle = (() => {
+        if (row.winner_handle) return row.winner_handle;
+        if (row.winner) return row.winner;
+        if (row.winner_artist_a === true) return row.artist1_handle || row.quick_battle_artist1_audius_handle;
+        if (row.winner_artist_a === false) return row.artist2_handle || row.quick_battle_artist2_audius_handle;
+        return undefined;
+      })();
 
       return {
-        id: row.id ? String(row.id) : row.queue_id ? String(row.queue_id) : row.battle_id ? String(row.battle_id) : `quick-${index}`,
+        id: resolveId(),
         queueId: row.queue_id ? String(row.queue_id) : undefined,
         battleId: row.battle_id ? String(row.battle_id) : undefined,
         createdAt: row.created_at,
