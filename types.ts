@@ -33,6 +33,13 @@ export interface BattleSummary {
   isTestBattle?: boolean;
   isQuickBattle?: boolean;
   quickBattleQueueId?: string;
+  quickBattleArtist1Handle?: string;
+  quickBattleArtist2Handle?: string;
+  quickBattleArtist1ProfilePic?: string;
+  quickBattleArtist2ProfilePic?: string;
+  quickBattleArtist1Profile?: Record<string, unknown>;
+  quickBattleArtist2Profile?: Record<string, unknown>;
+  winnerArtistA?: boolean;
   splitWalletAddress?: string;
 
   // --- CACHED DYNAMIC DATA ---
@@ -238,4 +245,20 @@ export interface TraderLeaderboardEntry {
   wins: number;
   losses: number;
   winRate: number;
+}
+
+export interface QuickBattleLeaderboardEntry {
+  id: string;
+  queueId?: string;
+  battleId?: string;
+  createdAt?: string;
+  status?: string;
+  artist1Handle?: string;
+  artist2Handle?: string;
+  artist1ProfilePic?: string;
+  artist2ProfilePic?: string;
+  artist1Score?: number;
+  artist2Score?: number;
+  totalVolume?: number;
+  winnerHandle?: string;
 }

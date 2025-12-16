@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats } from '../types';
+import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats, QuickBattleLeaderboardEntry } from '../types';
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
@@ -68,6 +68,15 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
       isCommunityBattle: row.is_community_battle,
       communityRoundId: row.community_round_id,
       isTestBattle: row.is_test_battle || false,
+      isQuickBattle: row.is_quick_battle || false,
+      quickBattleQueueId: row.quick_battle_queue_id ? String(row.quick_battle_queue_id) : undefined,
+      quickBattleArtist1Handle: row.quick_battle_artist1_audius_handle,
+      quickBattleArtist2Handle: row.quick_battle_artist2_audius_handle,
+      quickBattleArtist1ProfilePic: row.quick_battle_artist1_audius_profile_pic,
+      quickBattleArtist2ProfilePic: row.quick_battle_artist2_audius_profile_pic,
+      quickBattleArtist1Profile: row.quick_battle_artist1_profile,
+      quickBattleArtist2Profile: row.quick_battle_artist2_profile,
+      winnerArtistA: typeof row.winner_artist_a === 'boolean' ? row.winner_artist_a : undefined,
       
       // Dynamic Stats from Cache (if available in DB schema)
       totalVolumeA: row.total_volume_a || 0,
@@ -81,6 +90,58 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
   } catch (err: any) {
     const errorMessage = typeof err === 'object' ? JSON.stringify(err, null, 2) : String(err);
     console.warn("Supabase connection failed (using fallback):", errorMessage);
+  }
+  return null;
+}
+
+export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('quick_battle_leaderboard')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) return null;
+
+    return data.map((row: any, index: number) => {
+      // Prefer volume, then votes/score, then legacy total_volume fields
+      const artist1Score = row.artist1_volume ?? row.artist1_votes ?? row.artist1_score ?? row.total_volume_a;
+      const artist2Score = row.artist2_volume ?? row.artist2_votes ?? row.artist2_score ?? row.total_volume_b;
+      const totalVolume = row.total_volume ?? ((artist1Score || 0) + (artist2Score || 0));
+      const resolveId = () => {
+        if (row.id) return String(row.id);
+        if (row.queue_id) return String(row.queue_id);
+        if (row.battle_id) return String(row.battle_id);
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+        return `quick-${Date.now()}-${index}`;
+      };
+
+      const winnerHandle = (() => {
+        if (row.winner_handle) return row.winner_handle;
+        if (row.winner) return row.winner;
+        if (row.winner_artist_a === true) return row.artist1_handle || row.quick_battle_artist1_audius_handle;
+        if (row.winner_artist_a === false) return row.artist2_handle || row.quick_battle_artist2_audius_handle;
+        return undefined;
+      })();
+
+      return {
+        id: resolveId(),
+        queueId: row.queue_id ? String(row.queue_id) : undefined,
+        battleId: row.battle_id ? String(row.battle_id) : undefined,
+        createdAt: row.created_at,
+        status: row.status,
+        artist1Handle: row.artist1_handle || row.quick_battle_artist1_audius_handle,
+        artist2Handle: row.artist2_handle || row.quick_battle_artist2_audius_handle,
+        artist1ProfilePic: row.artist1_profile_pic || row.quick_battle_artist1_audius_profile_pic,
+        artist2ProfilePic: row.artist2_profile_pic || row.quick_battle_artist2_audius_profile_pic,
+        artist1Score,
+        artist2Score,
+        totalVolume: typeof totalVolume === 'number' ? totalVolume : undefined,
+        winnerHandle,
+      } as QuickBattleLeaderboardEntry;
+    });
+  } catch (e) {
+    console.warn("Failed to fetch quick battle leaderboard", e);
     return null;
   }
 }
