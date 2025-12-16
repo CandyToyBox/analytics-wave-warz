@@ -31,11 +31,13 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
         artist1Score: b.artistASolBalance || 0,
         artist2Score: b.artistBSolBalance || 0,
         totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
-        winnerHandle: b.winnerDecided
-          ? ((b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0))) 
-              ? (b.quickBattleArtist1Handle || b.artistA.name) 
-              : (b.quickBattleArtist2Handle || b.artistB.name))
-          : undefined,
+        winnerHandle: (() => {
+          if (!b.winnerDecided) return undefined;
+          const artistAIsWinner = b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0));
+          return artistAIsWinner
+            ? (b.quickBattleArtist1Handle || b.artistA.name)
+            : (b.quickBattleArtist2Handle || b.artistB.name);
+        })(),
       }));
     };
   }, [battles]);

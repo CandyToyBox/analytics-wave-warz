@@ -104,6 +104,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any, index: number) => {
+      // Prefer volume, then votes/score, then legacy total_volume fields
       const artist1Score = row.artist1_volume ?? row.artist1_votes ?? row.artist1_score ?? row.total_volume_a;
       const artist2Score = row.artist2_volume ?? row.artist2_votes ?? row.artist2_score ?? row.total_volume_b;
       const totalVolume = row.total_volume ?? ((artist1Score || 0) + (artist2Score || 0));
@@ -111,7 +112,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         if (row.id) return String(row.id);
         if (row.queue_id) return String(row.queue_id);
         if (row.battle_id) return String(row.battle_id);
-        return `quick-${index}`;
+        return `quick-${Date.now()}-${index}`;
       };
 
       const winnerHandle = (() => {
