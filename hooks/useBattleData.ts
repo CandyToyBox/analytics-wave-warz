@@ -3,6 +3,7 @@ import { getBattleLibrary } from '../data';
 import { BattleState, BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, QuickBattleLeaderboardEntry } from '../types';
 import {
   fetchBattlesFromSupabase,
+  fetchArtistLeaderboardFromDB,
   fetchQuickBattleLeaderboardFromDB,
   fetchTraderLeaderboardFromDB,
   BATTLE_COLUMNS,
@@ -128,6 +129,16 @@ export function useArtistLeaderboard(battles: BattleSummary[], solPrice: number)
   return useQuery<ArtistLeaderboardStats[]>({
     queryKey: ['leaderboard', 'artists', battles.length, solPrice],
     queryFn: async () => {
+      try {
+        const cached = await fetchArtistLeaderboardFromDB();
+        if (cached && cached.length > 0) {
+          console.log(`✅ Loaded ${cached.length} artists from database`);
+          return cached;
+        }
+      } catch (e) {
+        console.log('Computing from battles...');
+      }
+
       if (battles.length === 0) return [];
 
       const estimated = mockEstimateVolumes(battles) as BattleState[];
