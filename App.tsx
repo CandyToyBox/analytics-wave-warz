@@ -38,10 +38,9 @@ import { MomentumGauge } from './components/MomentumGauge';
 import { ShareButton } from './components/ShareButton';
 import { TraderProfile } from './components/TraderProfile';
 import { InfoTooltip } from './components/InfoTooltip';
-import { getBattleLibrary } from './data';
 import { fetchBattleOnChain, fetchTraderProfile } from './services/solanaService';
-import { fetchBattlesFromSupabase } from './services/supabaseClient';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useAllBattles } from './hooks/useBattleData';
 
 // --- FILTER LOGIC ---
 // Since we now filter by is_test_battle in the database query,
@@ -62,12 +61,14 @@ export default function App() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [library, setLibrary] = useState<BattleSummary[]>([]);
   const [solPrice, setSolPrice] = useState<number>(0);
-  const [dataSource, setDataSource] = useState<'Local' | 'Supabase'>('Local');
+  const { data: battlesResult, isLoading: battlesLoading } = useAllBattles();
+  const library = useMemo(() => battlesResult?.battles ?? [], [battlesResult]);
+  const dataSource = battlesResult?.source ?? 'Local';
+  const showGlobalLoading = isLoading || battlesLoading;
 
   useEffect(() => {
-    async function initData() {
+    async function fetchSolPrice() {
       try {
         const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
         const data = await resp.json();
@@ -76,27 +77,8 @@ export default function App() {
         console.warn("Failed to fetch SOL Price", e);
         setSolPrice(200);
       }
-
-      const csvData = getBattleLibrary();
-
-      try {
-        const supabaseData = await fetchBattlesFromSupabase();
-        if (supabaseData && supabaseData.length > 0) {
-          console.log("Loaded battles from Supabase");
-          setLibrary(supabaseData);
-          setDataSource('Supabase');
-        } else {
-          console.log("Using local CSV data");
-          setLibrary(csvData);
-          setDataSource('Local');
-        }
-      } catch (e) {
-        console.warn("Error loading data, falling back to CSV", e);
-        setLibrary(csvData);
-        setDataSource('Local');
-      }
     }
-    initData();
+    fetchSolPrice();
   }, []);
 
   useEffect(() => {
@@ -320,10 +302,12 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-        {isLoading && (
+        {showGlobalLoading && (
           <div className="fixed inset-0 bg-navy-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
             <Loader2 className="w-10 h-10 text-wave-blue animate-spin mb-4" />
-            <div className="text-slate-300 font-mono">Crunching Blockchain Data...</div>
+            <div className="text-slate-300 font-mono">
+              {battlesLoading ? 'Loading battles...' : 'Crunching Blockchain Data...'}
+            </div>
           </div>
         )}
 

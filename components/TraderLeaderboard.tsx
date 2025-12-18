@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BattleSummary, TraderLeaderboardEntry } from '../types';
 import { fetchBatchTraderStats } from '../services/solanaService';
-import { fetchTraderLeaderboardFromDB, saveTraderLeaderboardToDB } from '../services/supabaseClient';
+import { saveTraderLeaderboardToDB } from '../services/supabaseClient';
 import { Loader2, Search, ArrowUpDown, ArrowUp, ArrowDown, Wallet, Trophy, PlayCircle, StopCircle, Check } from 'lucide-react';
 import { formatSol, formatPct, formatUsd } from '../utils';
+import { useTraderLeaderboard } from '../hooks/useBattleData';
 
 interface Props {
   battles: BattleSummary[];
@@ -24,23 +25,19 @@ export const TraderLeaderboard: React.FC<Props> = ({ battles, onSelectTrader, so
   const rawStatsRef = useRef<Map<string, { invested: number, payout: number, battles: Set<string> }>>(new Map());
   const [sortKey, setSortKey] = useState<SortKey>('netPnL');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const { data: cachedTraders = [], isFetching: _traderLeaderboardFetching } = useTraderLeaderboard();
 
-  // Load from DB on mount
   useEffect(() => {
-    const init = async () => {
-      let cached = await fetchTraderLeaderboardFromDB();
-
-      if (cached && cached.length > 0) {
-        setTraders(cached);
-        setDataOrigin('Database');
-      } else {
-        setDataOrigin('Empty');
-        // ✅ Don't auto-scan! User can click "Force Rescan" button
-        // Scanning blockchain is expensive and should be manual
-      }
-    };
-    init();
-  }, []);
+    if (isScanning || dataOrigin === 'Live') return;
+    if (cachedTraders && cachedTraders.length > 0) {
+      setTraders(cachedTraders);
+      setDataOrigin('Database');
+    } else {
+      setDataOrigin('Empty');
+      // ✅ Don't auto-scan! User can click "Force Rescan" button
+      // Scanning blockchain is expensive and should be manual
+    }
+  }, [cachedTraders, isScanning, dataOrigin]);
 
   const startScan = () => {
     setTraders([]);
