@@ -37,7 +37,6 @@ import { WhaleTicker } from './components/WhaleTicker';
 import { MomentumGauge } from './components/MomentumGauge';
 import { ShareButton } from './components/ShareButton';
 import { TraderProfile } from './components/TraderProfile';
-import { DebugDataSync } from './components/DebugDataSync';
 import { InfoTooltip } from './components/InfoTooltip';
 import { getBattleLibrary } from './data';
 import { fetchBattleOnChain, fetchTraderProfile } from './services/solanaService';
@@ -847,7 +846,6 @@ export default function App() {
         </div>
       </footer>
 
-      <DebugDataSync />
       <Analytics />
       <SpeedInsights />
     </div>
