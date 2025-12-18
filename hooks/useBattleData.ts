@@ -6,6 +6,7 @@ import {
   fetchQuickBattleLeaderboardFromDB,
   fetchTraderLeaderboardFromDB,
   BATTLE_COLUMNS,
+  normalizeBattleId,
   supabase,
 } from '../services/supabaseClient';
 import { calculateArtistLeaderboard, mockEstimateVolumes } from '../services/artistLeaderboardService';
@@ -81,7 +82,8 @@ export function useBattleDetails(battleId: string | null) {
 
         if (error || !data) return null;
 
-        const battleIdValue = data.battle_id?.toString();
+        const battleIdValue = normalizeBattleId(data.battle_id);
+        if (!battleIdValue) return null;
 
         return {
           id: battleIdValue,

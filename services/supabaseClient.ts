@@ -36,6 +36,10 @@ export const BATTLE_COLUMNS = `
 
 const BATTLE_FETCH_LIMIT = 200;
 
+export function normalizeBattleId(value: unknown): string | null {
+  return value == null ? null : value.toString();
+}
+
 export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null> {
   if (!supabase) {
     console.warn("Supabase client not initialized. Using local fallback data.");
@@ -60,40 +64,44 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
       return null;
     }
 
-    return data.map((row: any) => {
-      const battleId = row.battle_id?.toString();
+    return data
+      .map((row: any) => {
+        const battleId = normalizeBattleId(row.battle_id);
 
-      return {
-        id: battleId,
-        battleId,
-        createdAt: row.created_at,
-        status: row.status,
-        artistA: {
-          id: 'A',
-          name: row.artist1_name,
-          color: '#06b6d4',
-          avatar: row.image_url,
-          wallet: row.artist1_wallet,
-          twitter: row.artist1_twitter
-        },
-        artistB: {
-          id: 'B',
-          name: row.artist2_name,
-          color: '#e879f9',
-          avatar: row.image_url,
-          wallet: row.artist2_wallet,
-          twitter: row.artist2_twitter
-        },
-        battleDuration: row.battle_duration,
-        winnerDecided: row.winner_decided,
-        winnerArtistA: typeof row.winner_artist_a === 'boolean' ? row.winner_artist_a : undefined,
-        artistASolBalance: row.artist1_pool || 0,
-        artistBSolBalance: row.artist2_pool || 0,
-        imageUrl: row.image_url,
-        streamLink: row.stream_link,
-        isCommunityBattle: row.is_community_battle,
-      };
-    });
+        if (!battleId) return null;
+
+        return {
+          id: battleId,
+          battleId,
+          createdAt: row.created_at,
+          status: row.status,
+          artistA: {
+            id: 'A',
+            name: row.artist1_name,
+            color: '#06b6d4',
+            avatar: row.image_url,
+            wallet: row.artist1_wallet,
+            twitter: row.artist1_twitter
+          },
+          artistB: {
+            id: 'B',
+            name: row.artist2_name,
+            color: '#e879f9',
+            avatar: row.image_url,
+            wallet: row.artist2_wallet,
+            twitter: row.artist2_twitter
+          },
+          battleDuration: row.battle_duration,
+          winnerDecided: row.winner_decided,
+          winnerArtistA: typeof row.winner_artist_a === 'boolean' ? row.winner_artist_a : undefined,
+          artistASolBalance: row.artist1_pool || 0,
+          artistBSolBalance: row.artist2_pool || 0,
+          imageUrl: row.image_url,
+          streamLink: row.stream_link,
+          isCommunityBattle: row.is_community_battle,
+        };
+      })
+      .filter(Boolean) as BattleSummary[];
 
   } catch (err: any) {
     const errorMessage = typeof err === 'object' ? JSON.stringify(err, null, 2) : String(err);
