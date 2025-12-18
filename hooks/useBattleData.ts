@@ -81,9 +81,11 @@ export function useBattleDetails(battleId: string | null) {
 
         if (error || !data) return null;
 
+        const battleIdValue = data.battle_id?.toString();
+
         return {
-          id: data.battle_id?.toString(),
-          battleId: data.battle_id?.toString(),
+          id: battleIdValue,
+          battleId: battleIdValue,
           createdAt: data.created_at,
           status: data.status,
           artistA: {
