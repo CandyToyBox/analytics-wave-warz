@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BattleSummary, QuickBattleLeaderboardEntry } from '../types';
-import { fetchQuickBattleLeaderboardFromDB } from '../services/supabaseClient';
+import { useQuickBattleLeaderboard } from '../hooks/useBattleData';
 import { formatSol, formatUsd } from '../utils';
 import { Loader2, Search, Trophy, Zap, ListOrdered } from 'lucide-react';
 
@@ -10,10 +10,8 @@ interface Props {
 }
 
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
-  const [entries, setEntries] = useState<QuickBattleLeaderboardEntry[]>([]);
-  const [dataSource, setDataSource] = useState<'Database' | 'Fallback' | 'Empty'>('Empty');
-  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const { data: quickEntries = [], isFetching } = useQuickBattleLeaderboard();
 
   const mapFallback = useMemo(() => {
     return () => {
@@ -43,35 +41,12 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     };
   }, [battles]);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const dbEntries = await fetchQuickBattleLeaderboardFromDB();
-        if (dbEntries && dbEntries.length > 0) {
-          setEntries(dbEntries);
-          setDataSource('Database');
-          return;
-        }
-
-        const fallback = mapFallback();
-
-        setEntries(fallback);
-        setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
-      } catch (e) {
-        console.warn("Quick battle leaderboard fetch failed", e);
-        const fallback = mapFallback();
-
-        setEntries(fallback);
-        setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
-      } finally {
-        setLoading(false);
-      }
-
-    };
-
-    load();
-  }, [battles, mapFallback]);
+  const fallbackEntries = useMemo(() => mapFallback(), [mapFallback]);
+  const hasDatabaseEntries = quickEntries.length > 0;
+  const entries = hasDatabaseEntries ? quickEntries : fallbackEntries;
+  const dataSource: 'Database' | 'Fallback' | 'Empty' =
+    hasDatabaseEntries ? 'Database' : (fallbackEntries.length > 0 ? 'Fallback' : 'Empty');
+  const loading = isFetching && !hasDatabaseEntries;
 
   const filteredEntries = useMemo(() => {
     const q = search.toLowerCase();
