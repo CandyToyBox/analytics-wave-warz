@@ -9,31 +9,38 @@ interface Props {
   battles: BattleSummary[];
   onSelectTrader: (wallet: string) => void;
   solPrice: number;
-  cachedTraders: TraderLeaderboardEntry[];
-  onTradersUpdate: (traders: TraderLeaderboardEntry[]) => void;
 }
 
 type SortKey = 'totalInvested' | 'netPnL' | 'roi' | 'battlesParticipated';
 
-export const TraderLeaderboard: React.FC<Props> = ({ battles, onSelectTrader, solPrice, cachedTraders, onTradersUpdate }) => {
+export const TraderLeaderboard: React.FC<Props> = ({ battles, onSelectTrader, solPrice }) => {
   const [traders, setTraders] = useState<TraderLeaderboardEntry[]>([]);
   const [search, setSearch] = useState('');
 
   const [isScanning, setIsScanning] = useState(false);
   const [progressCount, setProgressCount] = useState(0);
-  const [dataOrigin, setDataOrigin] = useState<'Database' | 'Live' | 'Empty'>('Database');
+  const [dataOrigin, setDataOrigin] = useState<'Database' | 'Live' | 'Empty'>('Empty');
 
   const rawStatsRef = useRef<Map<string, { invested: number, payout: number, battles: Set<string> }>>(new Map());
   const [sortKey, setSortKey] = useState<SortKey>('netPnL');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  // Sync local traders with cachedTraders
+  // Load from DB on mount
   useEffect(() => {
-    if (cachedTraders && cachedTraders.length > 0) {
-      setTraders(cachedTraders);
-      setDataOrigin('Database');
-    }
-  }, [cachedTraders]);
+    const init = async () => {
+      let cached = await fetchTraderLeaderboardFromDB();
+
+      if (cached && cached.length > 0) {
+        setTraders(cached);
+        setDataOrigin('Database');
+      } else {
+        setDataOrigin('Empty');
+        // ✅ Don't auto-scan! User can click "Force Rescan" button
+        // Scanning blockchain is expensive and should be manual
+      }
+    };
+    init();
+  }, []);
 
   const startScan = () => {
     setTraders([]);
@@ -98,7 +105,7 @@ export const TraderLeaderboard: React.FC<Props> = ({ battles, onSelectTrader, so
 
       if (active && isScanning) {
         setIsScanning(false);
-        // Update parent state so it persists
+        // Save result to DB when done
         const finalTraders = Array.from(rawStatsRef.current.entries()).map(([address, data]) => {
           const netPnL = data.payout - data.invested;
           return {
@@ -113,8 +120,6 @@ export const TraderLeaderboard: React.FC<Props> = ({ battles, onSelectTrader, so
             winRate: 0
           };
         });
-
-        onTradersUpdate(finalTraders);
         saveTraderLeaderboardToDB(finalTraders);
       }
     };

@@ -21,7 +21,7 @@ import {
   Wallet,
   Database
 } from 'lucide-react';
-import { BattleState, BattleSummary, BattleEvent, TraderProfileStats, ArtistLeaderboardStats, TraderLeaderboardEntry, QuickBattleLeaderboardEntry } from './types';
+import { BattleState, BattleSummary, BattleEvent, TraderProfileStats } from './types';
 import { calculateSettlement, formatSol, formatPct, formatUsd, calculateTVLWinner, calculateLeaderboard, groupBattlesIntoEvents } from './utils';
 import { StatCard } from './components/StatCard';
 import { DistributionChart } from './components/DistributionChart';
@@ -37,10 +37,11 @@ import { WhaleTicker } from './components/WhaleTicker';
 import { MomentumGauge } from './components/MomentumGauge';
 import { ShareButton } from './components/ShareButton';
 import { TraderProfile } from './components/TraderProfile';
+import { DebugDataSync } from './components/DebugDataSync';
 import { InfoTooltip } from './components/InfoTooltip';
 import { getBattleLibrary } from './data';
 import { fetchBattleOnChain, fetchTraderProfile } from './services/solanaService';
-import { fetchBattlesFromSupabase, fetchArtistLeaderboardFromDB, fetchTraderLeaderboardFromDB, fetchQuickBattleLeaderboardFromDB } from './services/supabaseClient';
+import { fetchBattlesFromSupabase } from './services/supabaseClient';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // --- FILTER LOGIC ---
@@ -65,12 +66,6 @@ export default function App() {
   const [library, setLibrary] = useState<BattleSummary[]>([]);
   const [solPrice, setSolPrice] = useState<number>(0);
   const [dataSource, setDataSource] = useState<'Local' | 'Supabase'>('Local');
-
-  // Global Leaderboard State
-  const [artistStats, setArtistStats] = useState<ArtistLeaderboardStats[]>([]);
-  const [traderLeaderboard, setTraderLeaderboard] = useState<TraderLeaderboardEntry[]>([]);
-  const [quickBattleEntries, setQuickBattleEntries] = useState<QuickBattleLeaderboardEntry[]>([]);
-  const [leaderboardsLoaded, setLeaderboardsLoaded] = useState(false);
 
   useEffect(() => {
     async function initData() {
@@ -100,22 +95,6 @@ export default function App() {
         console.warn("Error loading data, falling back to CSV", e);
         setLibrary(csvData);
         setDataSource('Local');
-      }
-
-      // Load Leaderboard Snapshots
-      try {
-        const [artists, traders, quick] = await Promise.all([
-          fetchArtistLeaderboardFromDB(),
-          fetchTraderLeaderboardFromDB(),
-          fetchQuickBattleLeaderboardFromDB()
-        ]);
-
-        if (artists) setArtistStats(artists);
-        if (traders) setTraderLeaderboard(traders);
-        if (quick) setQuickBattleEntries(quick);
-        setLeaderboardsLoaded(true);
-      } catch (e) {
-        console.warn("Failed to load leaderboard snapshots", e);
       }
     }
     initData();
@@ -434,29 +413,13 @@ export default function App() {
             </div>
 
             {leaderboardTab === 'artists' && (
-              <ArtistLeaderboard
-                battles={validLibrary}
-                solPrice={solPrice}
-                cachedStats={artistStats}
-                onStatsUpdate={setArtistStats}
-              />
+              <ArtistLeaderboard battles={validLibrary} solPrice={solPrice} />
             )}
             {leaderboardTab === 'traders' && (
-              <TraderLeaderboard
-                battles={validLibrary}
-                onSelectTrader={handleSelectTrader}
-                solPrice={solPrice}
-                cachedTraders={traderLeaderboard}
-                onTradersUpdate={setTraderLeaderboard}
-              />
+              <TraderLeaderboard battles={validLibrary} onSelectTrader={handleSelectTrader} solPrice={solPrice} />
             )}
             {leaderboardTab === 'quickBattles' && (
-              <QuickBattleLeaderboard
-                battles={validLibrary}
-                solPrice={solPrice}
-                cachedEntries={quickBattleEntries}
-                onEntriesUpdate={setQuickBattleEntries}
-              />
+              <QuickBattleLeaderboard battles={validLibrary} solPrice={solPrice} />
             )}
           </div>
         )}
@@ -884,6 +847,7 @@ export default function App() {
         </div>
       </footer>
 
+      <DebugDataSync />
       <Analytics />
       <SpeedInsights />
     </div>

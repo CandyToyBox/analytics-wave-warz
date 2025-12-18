@@ -9,29 +9,40 @@ import { Music, Disc, Twitter, Loader2, PlayCircle, Check } from 'lucide-react';
 interface Props {
     battles: BattleSummary[];
     solPrice: number;
-    cachedStats: ArtistLeaderboardStats[];
-    onStatsUpdate: (stats: ArtistLeaderboardStats[]) => void;
 }
 
-export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice, cachedStats, onStatsUpdate }) => {
+export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
     const [stats, setStats] = useState<ArtistLeaderboardStats[]>([]);
     const [isScanning, setIsScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState(0);
-    const [dataOrigin, setDataOrigin] = useState<'Estimated' | 'Database' | 'Live'>('Database');
+    const [dataOrigin, setDataOrigin] = useState<'Estimated' | 'Database' | 'Live'>('Estimated');
 
-    // Sync local stats with cachedStats + hydrate with current solPrice
+    // Load Data Effect
     useEffect(() => {
-        if (cachedStats && cachedStats.length > 0) {
-            const hydrated = cachedStats.map(s => ({
-                ...s,
-                totalEarningsUsd: s.totalEarningsSol * solPrice,
-                spotifyStreamEquivalents: (s.totalEarningsSol * solPrice) / 0.003
-            })).sort((a, b) => b.totalEarningsSol - a.totalEarningsSol);
+        const loadData = async () => {
+            // 1. Try DB first
+            let dbStats = await fetchArtistLeaderboardFromDB();
 
-            setStats(hydrated);
-            setDataOrigin('Database');
-        }
-    }, [cachedStats, solPrice]);
+            if (dbStats && dbStats.length > 0) {
+                // Recalculate USD dependent values
+                const hydrated = dbStats.map(s => ({
+                    ...s,
+                    totalEarningsUsd: s.totalEarningsSol * solPrice,
+                    // Re-calc spotify if price changes significantly
+                    spotifyStreamEquivalents: (s.totalEarningsSol * solPrice) / 0.003
+                })).sort((a, b) => b.totalEarningsSol - a.totalEarningsSol);
+
+                setStats(hydrated);
+                setDataOrigin('Database');
+            } else {
+                // ✅ Don't show estimated data - only show real blockchain values
+                // User can click "Sync Real-Time Volume" button to scan
+                setStats([]);
+                setDataOrigin('Database'); // Show as database (empty) rather than estimated
+            }
+        };
+        loadData();
+    }, [battles.length, solPrice]); // Re-run if battle count changes significantly or price updates
 
     const handleScan = async () => {
         setIsScanning(true);
@@ -59,10 +70,7 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice, cachedSt
         }
 
         const refinedStats = calculateArtistLeaderboard(enrichedBattles, solPrice);
-
-        // Update parent state so it persists
-        onStatsUpdate(refinedStats);
-
+        setStats(refinedStats);
         setDataOrigin('Live');
         setIsScanning(false);
 
