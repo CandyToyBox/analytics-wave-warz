@@ -50,7 +50,7 @@ export function useActiveBattles() {
     },
     initialData: () => {
       const cached = queryClient.getQueryData<BattlesResult>(['battles', 'all']);
-      return cached?.battles.filter((b) => b.status?.toLowerCase() === 'active');
+      return cached?.battles.filter((b) => b.status?.toLowerCase() === 'active') ?? [];
     },
     staleTime: 30000,
   });
