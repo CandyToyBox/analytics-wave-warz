@@ -8,11 +8,13 @@ import { Loader2, Search, Trophy, Zap, ListOrdered, PlayCircle } from 'lucide-re
 interface Props {
   battles: BattleSummary[];
   solPrice: number;
+  cachedEntries: QuickBattleLeaderboardEntry[];
+  onEntriesUpdate: (entries: QuickBattleLeaderboardEntry[]) => void;
 }
 
-export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
+export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice, cachedEntries, onEntriesUpdate }) => {
   const [entries, setEntries] = useState<QuickBattleLeaderboardEntry[]>([]);
-  const [dataSource, setDataSource] = useState<'Database' | 'Fallback' | 'Empty'>('Empty');
+  const [dataSource, setDataSource] = useState<'Database' | 'Fallback' | 'Empty'>('Database');
   const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
@@ -47,34 +49,19 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   }, [battles]);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const dbEntries = await fetchQuickBattleLeaderboardFromDB();
-        if (dbEntries && dbEntries.length > 0) {
-          setEntries(dbEntries);
-          setDataSource('Database');
-          return;
-        }
-
-        const fallback = mapFallback();
-
+    if (cachedEntries && cachedEntries.length > 0) {
+      setEntries(cachedEntries);
+      setDataSource('Database');
+    } else {
+      const fallback = mapFallback();
+      if (fallback.length > 0) {
         setEntries(fallback);
-        setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
-      } catch (e) {
-        console.warn("Quick battle leaderboard fetch failed", e);
-        const fallback = mapFallback();
-
-        setEntries(fallback);
-        setDataSource(fallback.length > 0 ? 'Fallback' : 'Empty');
-      } finally {
-        setLoading(false);
+        setDataSource('Fallback');
+      } else {
+        setDataSource('Empty');
       }
-
-    };
-
-    load();
-  }, [battles, mapFallback]);
+    }
+  }, [cachedEntries, mapFallback]);
 
   const handleSync = async () => {
     if (!battles.length) return;
@@ -117,6 +104,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     }
 
     setEntries(updatedEntries);
+    onEntriesUpdate(updatedEntries);
     setDataSource('Fallback');
     setIsScanning(false);
   };
