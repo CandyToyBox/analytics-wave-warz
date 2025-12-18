@@ -135,8 +135,9 @@ export function useArtistLeaderboard(battles: BattleSummary[], solPrice: number)
           console.log(`✅ Loaded ${cached.length} artists from database`);
           return cached;
         }
+        console.log('No cached artist leaderboard found, computing from battles...');
       } catch (e) {
-        console.log('Computing from battles...');
+        console.log('Failed to load artist leaderboard from database, computing from battles...', e);
       }
 
       if (battles.length === 0) return [];
