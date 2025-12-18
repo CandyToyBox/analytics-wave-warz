@@ -34,6 +34,8 @@ export const BATTLE_COLUMNS = `
   is_community_battle
 `;
 
+const BATTLE_FETCH_LIMIT = 200;
+
 export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null> {
   if (!supabase) {
     console.warn("Supabase client not initialized. Using local fallback data.");
@@ -46,7 +48,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
       .from('mv_battle_stats')
       .select(BATTLE_COLUMNS)
       .order('created_at', { ascending: false })
-      .limit(200);
+      .limit(BATTLE_FETCH_LIMIT);
 
     if (error) {
       console.warn("Supabase fetch warning (Official DB might be unreachable):", JSON.stringify(error, null, 2));
@@ -67,9 +69,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
         id: 'A',
         name: row.artist1_name,
         color: '#06b6d4',
-        avatar: row.image_url, // Fallback to event image if specific artist image missing
+        avatar: row.image_url,
         wallet: row.artist1_wallet,
-        musicLink: row.artist1_music_link,
         twitter: row.artist1_twitter
       },
       artistB: {
@@ -78,36 +79,16 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
         color: '#e879f9',
         avatar: row.image_url,
         wallet: row.artist2_wallet,
-        musicLink: row.artist2_music_link,
         twitter: row.artist2_twitter
       },
       battleDuration: row.battle_duration,
       winnerDecided: row.winner_decided,
+      winnerArtistA: typeof row.winner_artist_a === 'boolean' ? row.winner_artist_a : undefined,
       artistASolBalance: row.artist1_pool || 0,
       artistBSolBalance: row.artist2_pool || 0,
       imageUrl: row.image_url,
       streamLink: row.stream_link,
-      creatorWallet: row.creator_wallet,
       isCommunityBattle: row.is_community_battle,
-      communityRoundId: row.community_round_id,
-      isTestBattle: row.is_test_battle || false,
-      isQuickBattle: row.is_quick_battle || false,
-      quickBattleQueueId: row.quick_battle_queue_id ? String(row.quick_battle_queue_id) : undefined,
-      quickBattleArtist1Handle: row.quick_battle_artist1_audius_handle,
-      quickBattleArtist2Handle: row.quick_battle_artist2_audius_handle,
-      quickBattleArtist1ProfilePic: row.quick_battle_artist1_audius_profile_pic,
-      quickBattleArtist2ProfilePic: row.quick_battle_artist2_audius_profile_pic,
-      quickBattleArtist1Profile: row.quick_battle_artist1_profile,
-      quickBattleArtist2Profile: row.quick_battle_artist2_profile,
-      winnerArtistA: typeof row.winner_artist_a === 'boolean' ? row.winner_artist_a : undefined,
-      
-      // Dynamic Stats from Cache (if available in DB schema)
-      totalVolumeA: row.total_volume_a || 0,
-      totalVolumeB: row.total_volume_b || 0,
-      tradeCount: row.trade_count || 0,
-      uniqueTraders: row.unique_traders || 0,
-      lastScannedAt: row.last_scanned_at,
-      recentTrades: row.recent_trades_cache,
     }));
 
   } catch (err: any) {
