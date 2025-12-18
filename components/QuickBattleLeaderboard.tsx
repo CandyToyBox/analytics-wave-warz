@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BattleSummary, QuickBattleLeaderboardEntry } from '../types';
 import { fetchQuickBattleLeaderboardFromDB } from '../services/supabaseClient';
+import { fetchBattleOnChain } from '../services/solanaService';
 import { formatSol, formatUsd } from '../utils';
-import { Loader2, Search, Trophy, Zap, ListOrdered } from 'lucide-react';
+import { Loader2, Search, Trophy, Zap, ListOrdered, PlayCircle } from 'lucide-react';
 
 interface Props {
   battles: BattleSummary[];
@@ -13,33 +14,35 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   const [entries, setEntries] = useState<QuickBattleLeaderboardEntry[]>([]);
   const [dataSource, setDataSource] = useState<'Database' | 'Fallback' | 'Empty'>('Empty');
   const [loading, setLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [search, setSearch] = useState('');
 
   const mapFallback = useMemo(() => {
     return () => {
       const quickBattles = battles.filter(b => b.isQuickBattle);
-      return quickBattles.map((b, index) => ({
-        id: b.id || `quick-${index}`,
-        queueId: b.quickBattleQueueId,
-        battleId: b.battleId,
-        createdAt: b.createdAt,
-        status: b.status,
-        artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
-        artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
-        artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
-        artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
-        artist1Score: b.artistASolBalance || 0,
-        artist2Score: b.artistBSolBalance || 0,
-        totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
-        // Prefer explicit winner flag, otherwise fall back to balance comparison
-        winnerHandle: (() => {
-          if (!b.winnerDecided) return undefined;
-          const artistAIsWinner = b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0));
-          return artistAIsWinner
-            ? (b.quickBattleArtist1Handle || b.artistA.name)
-            : (b.quickBattleArtist2Handle || b.artistB.name);
-        })(),
-      }));
+      return quickBattles.map((b, index) => {
+        const winnerHandle = b.winnerDecided
+          ? (b.winnerArtistA ? (b.quickBattleArtist1Handle || b.artistA.name) : (b.quickBattleArtist2Handle || b.artistB.name))
+          : undefined;
+
+        return {
+          id: b.id || `quick-${index}`,
+          queueId: b.quickBattleQueueId,
+          battleId: b.battleId,
+          createdAt: b.createdAt,
+          status: b.status === 'Completed' || b.winnerDecided ? 'Completed' : b.status,
+          artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
+          artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
+          artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
+          artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
+          artist1Score: b.artistASolBalance || 0,
+          artist2Score: b.artistBSolBalance || 0,
+          totalVolume: (b.totalVolumeA || 0) + (b.totalVolumeB || 0),
+          winnerHandle,
+          rawBattle: b // Keep reference for syncing
+        };
+      });
     };
   }, [battles]);
 
@@ -73,17 +76,64 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     load();
   }, [battles, mapFallback]);
 
+  const handleSync = async () => {
+    if (!battles.length) return;
+    setIsScanning(true);
+    setScanProgress(0);
+
+    const quickBattles = battles.filter(b => b.isQuickBattle);
+    const updatedEntries: QuickBattleLeaderboardEntry[] = [];
+
+    // Sync each active battle to get real volume
+    for (let i = 0; i < quickBattles.length; i++) {
+      try {
+        const b = quickBattles[i];
+        // Fetch real-time data from chain
+        const state = await fetchBattleOnChain(b, true);
+
+        const winnerHandle = state.winnerDecided
+          ? (state.winnerArtistA ? (state.quickBattleArtist1Handle || state.artistA.name) : (state.quickBattleArtist2Handle || state.artistB.name))
+          : undefined;
+
+        updatedEntries.push({
+          id: b.id,
+          queueId: b.quickBattleQueueId,
+          battleId: b.battleId,
+          createdAt: b.createdAt,
+          status: state.isEnded ? 'Completed' : state.status,
+          artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
+          artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
+          artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
+          artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
+          artist1Score: state.artistASolBalance,
+          artist2Score: state.artistBSolBalance,
+          totalVolume: state.totalVolumeA + state.totalVolumeB,
+          winnerHandle,
+        });
+      } catch (e) {
+        console.warn("Failed to sync battle", e);
+      }
+      setScanProgress(i + 1);
+    }
+
+    setEntries(updatedEntries);
+    setDataSource('Fallback');
+    setIsScanning(false);
+  };
+
   const filteredEntries = useMemo(() => {
     const q = search.toLowerCase();
     return entries
-      .filter(entry => 
-        !q || 
-        entry.artist1Handle?.toLowerCase().includes(q) || 
-        entry.artist2Handle?.toLowerCase().includes(q) || 
+      .filter(entry =>
+        !q ||
+        entry.artist1Handle?.toLowerCase().includes(q) ||
+        entry.artist2Handle?.toLowerCase().includes(q) ||
         entry.queueId?.toLowerCase().includes(q) ||
         entry.battleId?.toLowerCase().includes(q)
       )
-      .sort((a, b) => (b.totalVolume || 0) - (a.totalVolume || 0));
+      .sort((a, b) => {
+        return (b.totalVolume || 0) - (a.totalVolume || 0);
+      });
   }, [entries, search]);
 
   const formatDate = (value?: string) => {
@@ -105,15 +155,31 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           </div>
         </div>
 
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-2.5 text-ui-gray w-4 h-4" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by artist or queue ID..."
-            className="w-full bg-navy-800 border border-navy-700 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-wave-blue transition-all placeholder:text-ui-gray"
-            type="text"
-          />
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+          {isScanning ? (
+            <div className="flex items-center gap-2 bg-navy-900 border border-navy-700 px-4 py-2 rounded-lg text-xs text-ui-gray">
+              <Loader2 className="animate-spin text-wave-blue" size={14} />
+              Syncing Chain Data... ({scanProgress}/{battles.filter(b => b.isQuickBattle).length})
+            </div>
+          ) : (
+            <button
+              onClick={handleSync}
+              className="flex items-center gap-2 text-xs font-bold text-wave-blue hover:text-white transition-colors bg-navy-900 hover:bg-navy-700 px-4 py-2 rounded-lg border border-navy-700"
+            >
+              <PlayCircle size={14} /> Sync Real-Time Data
+            </button>
+          )}
+
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-2.5 text-ui-gray w-4 h-4" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by artist or queue..."
+              className="w-full bg-navy-800 border border-navy-700 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-wave-blue transition-all placeholder:text-ui-gray"
+              type="text"
+            />
+          </div>
         </div>
       </div>
 
@@ -141,12 +207,11 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
               {filteredEntries.map((entry, index) => (
                 <tr key={entry.id} className="hover:bg-navy-700/60 transition-colors">
                   <td className="p-4 pl-6">
-                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${
-                      index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
+                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
                       index === 1 ? 'bg-slate-300/20 text-slate-300' :
-                      index === 2 ? 'bg-orange-700/20 text-orange-500' :
-                      'text-ui-gray'
-                    }`}>
+                        index === 2 ? 'bg-orange-700/20 text-orange-500' :
+                          'text-ui-gray'
+                      }`}>
                       {index + 1}
                     </span>
                   </td>

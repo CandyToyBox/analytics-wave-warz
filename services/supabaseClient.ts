@@ -5,7 +5,7 @@ import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleSt
 // OFFICIAL WAVEWARZ DB CONNECTION
 // Replace defaults with your official Project URL and Anon Key when ready.
 // The code will prefer environment variables if they exist.
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://gshwqoplsxgqbdkssoit.supabase.co'; 
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://gshwqoplsxgqbdkssoit.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzaHdxb3Bsc3hncWJka3Nzb2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NTQ2NDksImV4cCI6MjA3OTUzMDY0OX0.YNv0QgQfUMsrDyWQB3tnKVshal_h7ZjuobKWrQjfzlQ';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -44,7 +44,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
         id: 'A',
         name: row.artist1_name,
         color: '#06b6d4',
-        avatar: row.image_url, // Fallback to event image if specific artist image missing
+        avatar: row.artist1_profile_pic || row.image_url, // Use specific profile pic if available
         wallet: row.artist1_wallet,
         musicLink: row.artist1_music_link,
         twitter: row.artist1_twitter
@@ -53,7 +53,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
         id: 'B',
         name: row.artist2_name,
         color: '#e879f9',
-        avatar: row.image_url,
+        avatar: row.artist2_profile_pic || row.image_url,
         wallet: row.artist2_wallet,
         musicLink: row.artist2_music_link,
         twitter: row.artist2_twitter
@@ -77,7 +77,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
       quickBattleArtist1Profile: row.quick_battle_artist1_profile,
       quickBattleArtist2Profile: row.quick_battle_artist2_profile,
       winnerArtistA: typeof row.winner_artist_a === 'boolean' ? row.winner_artist_a : undefined,
-      
+
       // Dynamic Stats from Cache (if available in DB schema)
       totalVolumeA: row.total_volume_a || 0,
       totalVolumeB: row.total_volume_b || 0,
@@ -147,25 +147,25 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
 }
 
 export async function updateBattleDynamicStats(state: BattleState) {
-    try {
-        const { error } = await supabase
-            .from('battles')
-            .update({
-                artist1_pool: state.artistASolBalance,
-                artist2_pool: state.artistBSolBalance,
-                total_volume_a: state.totalVolumeA,
-                total_volume_b: state.totalVolumeB,
-                trade_count: state.tradeCount,
-                unique_traders: state.uniqueTraders,
-                last_scanned_at: new Date().toISOString(),
-                recent_trades_cache: state.recentTrades
-            })
-            .eq('battle_id', state.battleId);
+  try {
+    const { error } = await supabase
+      .from('battles')
+      .update({
+        artist1_pool: state.artistASolBalance,
+        artist2_pool: state.artistBSolBalance,
+        total_volume_a: state.totalVolumeA,
+        total_volume_b: state.totalVolumeB,
+        trade_count: state.tradeCount,
+        unique_traders: state.uniqueTraders,
+        last_scanned_at: new Date().toISOString(),
+        recent_trades_cache: state.recentTrades
+      })
+      .eq('battle_id', state.battleId);
 
-        if (error) console.warn("Failed to update battle cache:", error);
-    } catch (e) {
-        console.error("Supabase update error", e);
-    }
+    if (error) console.warn("Failed to update battle cache:", error);
+  } catch (e) {
+    console.error("Supabase update error", e);
+  }
 }
 
 export async function uploadBattlesToSupabase(battles: BattleSummary[]) {
@@ -181,18 +181,18 @@ export async function uploadBattlesToSupabase(battles: BattleSummary[]) {
       artist1_music_link: b.artistA.musicLink,
       artist1_twitter: b.artistA.twitter,
       artist1_pool: b.artistASolBalance,
-      
+
       artist2_name: b.artistB.name,
       artist2_wallet: b.artistB.wallet,
       artist2_music_link: b.artistB.musicLink,
       artist2_twitter: b.artistB.twitter,
       artist2_pool: b.artistBSolBalance,
-      
+
       image_url: b.imageUrl,
       stream_link: b.streamLink,
       battle_duration: b.battleDuration,
       winner_decided: b.winnerDecided,
-      
+
       is_community_battle: b.isCommunityBattle,
       community_round_id: b.communityRoundId,
       is_test_battle: b.isTestBattle || false,
@@ -207,7 +207,7 @@ export async function uploadBattlesToSupabase(battles: BattleSummary[]) {
       .upsert(rows, { onConflict: 'battle_id', ignoreDuplicates: false });
 
     if (error) throw error;
-    
+
     return { success: true, message: `Successfully synced ${rows.length} battles!` };
   } catch (e: any) {
     console.error("Upload failed", e);
@@ -218,30 +218,30 @@ export async function uploadBattlesToSupabase(battles: BattleSummary[]) {
 // --- TRADER SNAPSHOTS ---
 
 export async function fetchTraderSnapshotFromDB(wallet: string): Promise<TraderProfileStats | null> {
-    try {
-        const { data, error } = await supabase
-            .from('trader_snapshots')
-            .select('profile_data')
-            .eq('wallet_address', wallet)
-            .single();
-        
-        if (error || !data) return null;
-        return data.profile_data as TraderProfileStats;
-    } catch(e) {
-        return null;
-    }
+  try {
+    const { data, error } = await supabase
+      .from('trader_snapshots')
+      .select('profile_data')
+      .eq('wallet_address', wallet)
+      .single();
+
+    if (error || !data) return null;
+    return data.profile_data as TraderProfileStats;
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function saveTraderSnapshotToDB(stats: TraderProfileStats) {
-    try {
-        await supabase.from('trader_snapshots').upsert({
-            wallet_address: stats.walletAddress,
-            profile_data: stats,
-            updated_at: new Date().toISOString()
-        });
-    } catch(e) {
-        console.error("Failed to save trader snapshot", e);
-    }
+  try {
+    await supabase.from('trader_snapshots').upsert({
+      wallet_address: stats.walletAddress,
+      profile_data: stats,
+      updated_at: new Date().toISOString()
+    });
+  } catch (e) {
+    console.error("Failed to save trader snapshot", e);
+  }
 }
 
 // --- ARTIST LEADERBOARD CACHE ---
