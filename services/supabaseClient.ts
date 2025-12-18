@@ -10,6 +10,30 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIs
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+export const BATTLE_COLUMNS = `
+  battle_id,
+  status,
+  artist1_name,
+  artist2_name,
+  artist1_wallet,
+  artist2_wallet,
+  artist1_twitter,
+  artist2_twitter,
+  artist1_pool,
+  artist2_pool,
+  artist1_supply,
+  artist2_supply,
+  total_tvl,
+  current_leader,
+  winner_decided,
+  winner_artist_a,
+  created_at,
+  battle_duration,
+  image_url,
+  stream_link,
+  is_community_battle
+`;
+
 export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null> {
   if (!supabase) {
     console.warn("Supabase client not initialized. Using local fallback data.");
@@ -17,13 +41,12 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
   }
 
   try {
-    // Attempt to fetch from the official 'battles' table.
-    // Ensure your official DB has a view or table matching this structure or update the select.
+    // Use materialized view for performant battle fetches.
     const { data, error } = await supabase
-      .from('battles')
-      .select('*')
-      .eq('is_test_battle', false)
-      .order('created_at', { ascending: false });
+      .from('mv_battle_stats')
+      .select(BATTLE_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(200);
 
     if (error) {
       console.warn("Supabase fetch warning (Official DB might be unreachable):", JSON.stringify(error, null, 2));
@@ -36,8 +59,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
     }
 
     return data.map((row: any) => ({
-      id: row.id,
-      battleId: row.battle_id,
+      id: (row.id ?? row.battle_id)?.toString(),
+      battleId: row.battle_id?.toString(),
       createdAt: row.created_at,
       status: row.status,
       artistA: {

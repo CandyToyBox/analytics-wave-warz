@@ -2,10 +2,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getBattleLibrary } from '../data';
 import { BattleState, BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, QuickBattleLeaderboardEntry } from '../types';
 import {
-  fetchArtistLeaderboardFromDB,
   fetchBattlesFromSupabase,
   fetchQuickBattleLeaderboardFromDB,
   fetchTraderLeaderboardFromDB,
+  BATTLE_COLUMNS,
   supabase,
 } from '../services/supabaseClient';
 import { calculateArtistLeaderboard, mockEstimateVolumes } from '../services/artistLeaderboardService';
@@ -74,16 +74,16 @@ export function useBattleDetails(battleId: string | null) {
 
       try {
         const { data, error } = await supabase
-          .from('battles')
-          .select('*')
+          .from('mv_battle_stats')
+          .select(BATTLE_COLUMNS)
           .eq('battle_id', battleId)
           .maybeSingle();
 
         if (error || !data) return null;
 
         return {
-          id: data.id,
-          battleId: data.battle_id,
+          id: (data.id ?? data.battle_id)?.toString(),
+          battleId: data.battle_id?.toString(),
           createdAt: data.created_at,
           status: data.status,
           artistA: {
@@ -143,18 +143,6 @@ export function useArtistLeaderboard(battles: BattleSummary[], solPrice: number)
   return useQuery<ArtistLeaderboardStats[]>({
     queryKey: ['leaderboard', 'artists', battles.length, solPrice],
     queryFn: async () => {
-      const dbStats = await fetchArtistLeaderboardFromDB();
-
-      if (dbStats && dbStats.length > 0) {
-        return dbStats
-          .map((s) => ({
-            ...s,
-            totalEarningsUsd: s.totalEarningsSol * solPrice,
-            spotifyStreamEquivalents: (s.totalEarningsSol * solPrice) / 0.003,
-          }))
-          .sort((a, b) => b.totalEarningsSol - a.totalEarningsSol);
-      }
-
       if (battles.length === 0) return [];
 
       const estimated = mockEstimateVolumes(battles) as BattleState[];
