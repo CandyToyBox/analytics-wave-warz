@@ -293,33 +293,6 @@ export async function fetchArtistLeaderboardFromDB(): Promise<ArtistLeaderboardS
   }
 }
 
-export async function saveArtistLeaderboardToDB(stats: ArtistLeaderboardStats[]) {
-  try {
-    const rows = stats.map(s => ({
-      wallet_address: s.walletAddress || s.artistName, // Fallback PK
-      artist_name: s.artistName,
-      image_url: s.imageUrl,
-      twitter_handle: s.twitterHandle,
-      music_link: s.musicLink,
-      total_earnings_sol: s.totalEarningsSol,
-      spotify_stream_equivalents: s.spotifyStreamEquivalents,
-      battles_participated: s.battlesParticipated,
-      wins: s.wins,
-      losses: s.losses,
-      win_rate: s.winRate,
-      total_volume_generated: s.totalVolumeGenerated,
-      avg_volume_per_battle: s.avgVolumePerBattle,
-      updated_at: new Date().toISOString()
-    }));
-
-    const { error } = await supabase.from('artist_leaderboard').upsert(rows, { onConflict: 'wallet_address' });
-    if (error) throw error;
-    console.log("Artist Leaderboard Saved!");
-  } catch (e) {
-    console.error("Failed to save artist stats", e);
-  }
-}
-
 // --- TRADER LEADERBOARD CACHE ---
 
 export async function fetchTraderLeaderboardFromDB(): Promise<TraderLeaderboardEntry[] | null> {

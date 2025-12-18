@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BattleSummary, ArtistLeaderboardStats } from '../types';
 import { calculateArtistLeaderboard } from '../services/artistLeaderboardService';
 import { fetchBattleOnChain } from '../services/solanaService';
-import { saveArtistLeaderboardToDB } from '../services/supabaseClient';
 import { formatSol, formatUsd, formatPct } from '../utils';
 import { Music, Disc, Twitter, Loader2, PlayCircle, Check } from 'lucide-react';
 import { useArtistLeaderboard as useArtistLeaderboardQuery } from '../hooks/useBattleData';
@@ -61,8 +60,6 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
         setDataOrigin('Live');
         setIsScanning(false);
 
-        // Save to DB for next time
-        await saveArtistLeaderboardToDB(refinedStats);
     };
 
     const topArtist = stats[0];
