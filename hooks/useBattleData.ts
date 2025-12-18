@@ -17,6 +17,10 @@ type BattlesResult = {
   source: BattleSource;
 };
 
+const BATTLES_STALE_TIME = 60000;
+const BATTLES_REFETCH_INTERVAL = 120000;
+const ACTIVE_STALE_TIME = 30000;
+
 export function useAllBattles() {
   return useQuery<BattlesResult>({
     queryKey: ['battles', 'all'],
@@ -33,8 +37,8 @@ export function useAllBattles() {
       console.log(`⚠️ Using local fallback with ${fallback.length} battles`);
       return { battles: fallback, source: 'Local' as const };
     },
-    staleTime: 60000,
-    refetchInterval: 120000,
+    staleTime: BATTLES_STALE_TIME,
+    refetchInterval: BATTLES_REFETCH_INTERVAL,
   });
 }
 
@@ -45,14 +49,14 @@ export function useActiveBattles() {
     queryKey: ['battles', 'active'],
     queryFn: async () => {
       const cached = queryClient.getQueryData<BattlesResult>(['battles', 'all']);
-      const base = cached?.battles ?? (await fetchBattlesFromSupabase()) ?? getBattleLibrary();
+      const base = cached?.battles ?? getBattleLibrary();
       return base.filter((b) => b.status?.toLowerCase() === 'active');
     },
     initialData: () => {
       const cached = queryClient.getQueryData<BattlesResult>(['battles', 'all']);
       return cached?.battles.filter((b) => b.status?.toLowerCase() === 'active') ?? [];
     },
-    staleTime: 30000,
+    staleTime: ACTIVE_STALE_TIME,
   });
 }
 
@@ -86,7 +90,7 @@ export function useBattleDetails(battleId: string | null) {
             id: 'A',
             name: data.artist1_name,
             color: '#06b6d4',
-            avatar: data.image_url,
+            avatar: data.artist1_profile_pic || data.image_url,
             wallet: data.artist1_wallet,
             musicLink: data.artist1_music_link,
             twitter: data.artist1_twitter,
@@ -95,7 +99,7 @@ export function useBattleDetails(battleId: string | null) {
             id: 'B',
             name: data.artist2_name,
             color: '#e879f9',
-            avatar: data.image_url,
+            avatar: data.artist2_profile_pic || data.image_url,
             wallet: data.artist2_wallet,
             musicLink: data.artist2_music_link,
             twitter: data.artist2_twitter,
