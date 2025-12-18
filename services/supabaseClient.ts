@@ -59,7 +59,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
     }
 
     return data.map((row: any) => ({
-      id: (row.id ?? row.battle_id)?.toString(),
+      id: row.battle_id?.toString(),
       battleId: row.battle_id?.toString(),
       createdAt: row.created_at,
       status: row.status,

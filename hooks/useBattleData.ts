@@ -82,7 +82,7 @@ export function useBattleDetails(battleId: string | null) {
         if (error || !data) return null;
 
         return {
-          id: (data.id ?? data.battle_id)?.toString(),
+          id: data.battle_id?.toString(),
           battleId: data.battle_id?.toString(),
           createdAt: data.created_at,
           status: data.status,
