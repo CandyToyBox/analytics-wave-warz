@@ -8,21 +8,12 @@ import { createClient } from '@supabase/supabase-js';
 
 // Rate limiter for active battles
 const updateCache = new Map<string, number>();
-const parsedRateLimit = process.env.BATTLE_RATE_LIMIT_MS !== undefined ? Number(process.env.BATTLE_RATE_LIMIT_MS) : NaN;
-const RATE_LIMIT_MS = Number.isFinite(parsedRateLimit) ? parsedRateLimit : 30000; // 30 seconds between updates for same battle
-const MAX_CACHE_SIZE = 1000;
+const RATE_LIMIT_MS = 30000; // 30 seconds between updates for same battle
 
 // Initialize Supabase client with service role
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables (VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY)');
-}
-
 const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // ============================================================================
@@ -212,7 +203,7 @@ async function handleBattleUpdate(payload: any) {
       updateCache.set(battleId, now);
       
       // Clean up old entries to prevent memory leak
-      if (updateCache.size > MAX_CACHE_SIZE) {
+      if (updateCache.size > 1000) {
         const cutoff = now - RATE_LIMIT_MS;
         for (const [id, time] of updateCache.entries()) {
           if (time < cutoff) updateCache.delete(id);
@@ -231,7 +222,7 @@ async function handleBattleUpdate(payload: any) {
         winner_decided: battleData.winner_decided,
         winner_artist_a: battleData.winner_artist_a,
         status: battleData.status,
-        updated_at: new Date().toISOString(),
+        // ✅ NOTE: updated_at column doesn't exist - Supabase auto-manages timestamps
       })
       .eq('battle_id', battleId);
 
@@ -264,3 +255,25 @@ async function handleBattleUpdate(payload: any) {
     return { success: false, error: error.message };
   }
 }
+
+// ============================================================================
+// PERIODIC CLEANUP (OPTIONAL)
+// ============================================================================
+
+// Clean up rate limiter cache every hour
+setInterval(() => {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_MS;
+  let cleaned = 0;
+  
+  for (const [id, time] of updateCache.entries()) {
+    if (time < cutoff) {
+      updateCache.delete(id);
+      cleaned++;
+    }
+  }
+  
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} stale entries from rate limiter cache`);
+  }
+}, 3600000); // Every hour
