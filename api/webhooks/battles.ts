@@ -8,7 +8,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Rate limiter for active battles
 const updateCache = new Map<string, number>();
-const RATE_LIMIT_MS = 30000; // 30 seconds between updates for same battle
+const RATE_LIMIT_MS = Number(process.env.BATTLE_RATE_LIMIT_MS ?? 30000) || 30000; // 30 seconds between updates for same battle
+const MAX_CACHE_SIZE = 1000;
 
 // Initialize Supabase client with service role
 const supabase = createClient(
@@ -203,7 +204,7 @@ async function handleBattleUpdate(payload: any) {
       updateCache.set(battleId, now);
       
       // Clean up old entries to prevent memory leak
-      if (updateCache.size > 1000) {
+      if (updateCache.size > MAX_CACHE_SIZE) {
         const cutoff = now - RATE_LIMIT_MS;
         for (const [id, time] of updateCache.entries()) {
           if (time < cutoff) updateCache.delete(id);

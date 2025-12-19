@@ -10,7 +10,14 @@
 const SPOTIFY_RATE_PER_STREAM = 0.003; // $0.003 per stream
 const SOL_PRICE_CACHE_MS = 300000; // Cache SOL price for 5 minutes
 const COINGECKO_API = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
-const DEFAULT_SOL_PRICE = 200; // Fallback SOL price when API fails
+// Fallback SOL price when API fails (last validated Q4 2024 average)
+const DEFAULT_SOL_PRICE = 200;
+const MIN_AUDIUS_ID_LENGTH = 5;
+const AUDIUS_DISCOVERY_NODES = [
+  'https://discoveryprovider.audius.co',
+  'https://discoveryprovider2.audius.co',
+  'https://discoveryprovider3.audius.co',
+];
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -200,8 +207,8 @@ export function extractAudiusTrackId(audiusLink: string | null): string | null {
     const parts = audiusLink.split('/');
     const lastPart = parts[parts.length - 1];
     // Extract ID (usually after last hyphen or the whole thing)
-    // Audius IDs are alphanumeric, typically >=5 chars
-    const match = lastPart.match(/([a-zA-Z0-9]{5,})$/);
+    // Audius IDs are alphanumeric, typically >= MIN_AUDIUS_ID_LENGTH chars
+    const match = lastPart.match(new RegExp(`([a-zA-Z0-9]{${MIN_AUDIUS_ID_LENGTH},})$`));
     return match ? match[1] : null;
   } catch (error) {
     console.error('Failed to extract Audius track ID:', error);
@@ -218,13 +225,7 @@ export function getAudiusArtworkUrl(audiusLink: string | null, size: number = 48
   if (!trackId) return null;
   
   // Audius discovery nodes for artwork
-  const discoveryNodes = [
-    'https://discoveryprovider.audius.co',
-    'https://discoveryprovider2.audius.co',
-    'https://discoveryprovider3.audius.co',
-  ];
-  
-  const discoveryNode = discoveryNodes[Math.floor(Math.random() * discoveryNodes.length)];
+  const discoveryNode = AUDIUS_DISCOVERY_NODES[Math.floor(Math.random() * AUDIUS_DISCOVERY_NODES.length)];
   return `${discoveryNode}/content/${trackId}/${size}x${size}.jpg`;
 }
 

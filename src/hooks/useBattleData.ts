@@ -20,10 +20,14 @@ import {
   isCommunityBattle,
 } from '../utils/priceCalculations';
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_KEY
-);
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables (VITE_SUPABASE_URL/VITE_SUPABASE_KEY)');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ============================================================================
 // HOOK 1: Fetch All Battles from Public View
