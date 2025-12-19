@@ -8,13 +8,21 @@ import { createClient } from '@supabase/supabase-js';
 
 // Rate limiter for active battles
 const updateCache = new Map<string, number>();
-const RATE_LIMIT_MS = Number(process.env.BATTLE_RATE_LIMIT_MS ?? 30000) || 30000; // 30 seconds between updates for same battle
+const parsedRateLimit = process.env.BATTLE_RATE_LIMIT_MS !== undefined ? Number(process.env.BATTLE_RATE_LIMIT_MS) : NaN;
+const RATE_LIMIT_MS = Number.isFinite(parsedRateLimit) ? parsedRateLimit : 30000; // 30 seconds between updates for same battle
 const MAX_CACHE_SIZE = 1000;
 
 // Initialize Supabase client with service role
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  throw new Error('Missing Supabase environment variables (VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY)');
+}
+
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  supabaseUrl,
+  supabaseServiceRoleKey
 );
 
 // ============================================================================

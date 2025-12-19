@@ -8,7 +8,10 @@
 // ============================================================================
 
 const SPOTIFY_RATE_PER_STREAM = 0.003; // $0.003 per stream
-const SOL_PRICE_CACHE_MS = 300000; // Cache SOL price for 5 minutes
+const parsedCacheMs = typeof import.meta !== 'undefined' && import.meta?.env?.VITE_SOL_PRICE_CACHE_MS
+  ? Number(import.meta.env.VITE_SOL_PRICE_CACHE_MS)
+  : undefined;
+const SOL_PRICE_CACHE_MS = Number.isFinite(parsedCacheMs) ? parsedCacheMs! : 300000; // Cache SOL price for 5 minutes
 const COINGECKO_API = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
 // Fallback SOL price when API fails (last validated Q4 2024 average)
 const DEFAULT_SOL_PRICE = 200;
@@ -18,6 +21,7 @@ const AUDIUS_DISCOVERY_NODES = [
   'https://discoveryprovider2.audius.co',
   'https://discoveryprovider3.audius.co',
 ];
+let audiusNodeIndex = 0;
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -225,7 +229,8 @@ export function getAudiusArtworkUrl(audiusLink: string | null, size: number = 48
   if (!trackId) return null;
   
   // Audius discovery nodes for artwork
-  const discoveryNode = AUDIUS_DISCOVERY_NODES[Math.floor(Math.random() * AUDIUS_DISCOVERY_NODES.length)];
+  const discoveryNode = AUDIUS_DISCOVERY_NODES[audiusNodeIndex % AUDIUS_DISCOVERY_NODES.length];
+  audiusNodeIndex++;
   return `${discoveryNode}/content/${trackId}/${size}x${size}.jpg`;
 }
 
