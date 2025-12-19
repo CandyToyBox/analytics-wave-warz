@@ -1,8 +1,8 @@
 // ============================================================================
-// WAVEWARZ ANALYTICS - BATTLE WEBHOOK HANDLER (OPTIMIZED)
+// WAVEWARZ ANALYTICS - BATTLE WEBHOOK HANDLER (SUPABASE V2 COMPATIBLE)
 // ============================================================================
-// Handles INSERT and UPDATE webhooks from production database
-// CRITICAL: Skips updates for completed battles to prevent database overload
+// FIXED: Removed "returning" option (Supabase v2 doesn't support it)
+// FIXED: Removed "updated_at" column update (doesn't exist in schema)
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,16 +11,9 @@ const updateCache = new Map<string, number>();
 const RATE_LIMIT_MS = 30000; // 30 seconds between updates for same battle
 
 // Initialize Supabase client with service role
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables (VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY)');
-}
-
 const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // ============================================================================
@@ -81,7 +74,7 @@ async function handleBattleInsert(payload: any) {
   console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
   
   try {
-    // Insert new battle into analytics database
+    // ✅ SUPABASE V2: No "returning" option, just .insert()
     const { error } = await supabase
       .from('battles')
       .insert({
@@ -109,6 +102,7 @@ async function handleBattleInsert(payload: any) {
         is_community_battle: battleData.is_community_battle || false,
         created_at: battleData.created_at,
       });
+    // ✅ No .select() = minimal payload (fastest)
 
     if (error) {
       console.error('❌ INSERT failed:', error);
@@ -180,7 +174,6 @@ async function handleBattleUpdate(payload: any) {
       
       if (timeSinceCreation > durationMs && !battleData.winner_decided) {
         console.log(`⏰ Battle ${battleId} is past duration (${Math.round(timeSinceCreation / 1000 / 60)} min) - treating as completed`);
-        // Don't skip, but mark it as completed in this update
       }
     }
     
@@ -218,7 +211,7 @@ async function handleBattleUpdate(payload: any) {
       }
     }
     
-    // Perform the update
+    // ✅ SUPABASE V2: No "returning" option, just .update()
     const { error: updateError } = await supabase
       .from('battles')
       .update({
@@ -229,9 +222,10 @@ async function handleBattleUpdate(payload: any) {
         winner_decided: battleData.winner_decided,
         winner_artist_a: battleData.winner_artist_a,
         status: battleData.status,
-        // ✅ NOTE: updated_at column doesn't exist - Supabase auto-manages timestamps
-      }, { returning: 'minimal' })
+        // ✅ Removed "updated_at" - column doesn't exist in schema
+      })
       .eq('battle_id', battleId);
+    // ✅ No .select() = minimal payload (fastest)
 
     if (updateError) {
       console.error('❌ UPDATE failed:', updateError);
@@ -264,23 +258,19 @@ async function handleBattleUpdate(payload: any) {
 }
 
 // ============================================================================
-// PERIODIC CLEANUP (OPTIONAL)
+// NOTES ON SUPABASE V2 API CHANGES:
 // ============================================================================
-
-// Clean up rate limiter cache every hour
-setInterval(() => {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_MS;
-  let cleaned = 0;
-  
-  for (const [id, time] of updateCache.entries()) {
-    if (time < cutoff) {
-      updateCache.delete(id);
-      cleaned++;
-    }
-  }
-  
-  if (cleaned > 0) {
-    console.log(`🧹 Cleaned ${cleaned} stale entries from rate limiter cache`);
-  }
-}, 3600000); // Every hour
+//
+// OLD (v1): .insert(data, { returning: 'minimal' })
+// NEW (v2): .insert(data)  // No returning option!
+//
+// OLD (v1): .update(data, { returning: 'representation' })
+// NEW (v2): .update(data)  // No returning option!
+//
+// If you need data back:
+// NEW (v2): .insert(data).select()  // Returns inserted rows
+// NEW (v2): .update(data).eq('id', x).select()  // Returns updated rows
+//
+// For best performance (minimal payload), omit .select()
+//
+// ============================================================================
