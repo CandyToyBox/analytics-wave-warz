@@ -230,7 +230,7 @@ async function handleBattleUpdate(payload: any) {
         winner_artist_a: battleData.winner_artist_a,
         status: battleData.status,
         // ✅ NOTE: updated_at column doesn't exist - Supabase auto-manages timestamps
-      })
+      }, { returning: 'minimal' })
       .eq('battle_id', battleId);
 
     if (updateError) {
