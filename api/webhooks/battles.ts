@@ -255,25 +255,3 @@ async function handleBattleUpdate(payload: any) {
     return { success: false, error: error.message };
   }
 }
-
-// ============================================================================
-// PERIODIC CLEANUP (OPTIONAL)
-// ============================================================================
-
-// Clean up rate limiter cache every hour
-setInterval(() => {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_MS;
-  let cleaned = 0;
-  
-  for (const [id, time] of updateCache.entries()) {
-    if (time < cutoff) {
-      updateCache.delete(id);
-      cleaned++;
-    }
-  }
-  
-  if (cleaned > 0) {
-    console.log(`🧹 Cleaned ${cleaned} stale entries from rate limiter cache`);
-  }
-}, 3600000); // Every hour

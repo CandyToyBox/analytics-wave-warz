@@ -10,6 +10,7 @@
 const SPOTIFY_RATE_PER_STREAM = 0.003; // $0.003 per stream
 const SOL_PRICE_CACHE_MS = 300000; // Cache SOL price for 5 minutes
 const COINGECKO_API = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
+const DEFAULT_SOL_PRICE = 200; // Fallback SOL price when API fails
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -124,7 +125,7 @@ export async function getCurrentSolPrice(): Promise<number> {
     return price;
   } catch (error) {
     console.error('❌ Failed to fetch SOL price:', error);
-    return solPriceCache?.price || 200;
+    return solPriceCache?.price || DEFAULT_SOL_PRICE;
   }
 }
 
@@ -199,7 +200,8 @@ export function extractAudiusTrackId(audiusLink: string | null): string | null {
     const parts = audiusLink.split('/');
     const lastPart = parts[parts.length - 1];
     // Extract ID (usually after last hyphen or the whole thing)
-    const match = lastPart.match(/([a-zA-Z0-9]+)$/);
+    // Audius IDs are alphanumeric, typically >=5 chars
+    const match = lastPart.match(/([a-zA-Z0-9]{5,})$/);
     return match ? match[1] : null;
   } catch (error) {
     console.error('Failed to extract Audius track ID:', error);
@@ -222,8 +224,8 @@ export function getAudiusArtworkUrl(audiusLink: string | null, size: number = 48
     'https://discoveryprovider3.audius.co',
   ];
   
-  // Use first discovery node (can implement fallback logic if needed)
-  return `${discoveryNodes[0]}/content/${trackId}/${size}x${size}.jpg`;
+  const discoveryNode = discoveryNodes[Math.floor(Math.random() * discoveryNodes.length)];
+  return `${discoveryNode}/content/${trackId}/${size}x${size}.jpg`;
 }
 
 // ============================================================================

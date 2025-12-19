@@ -253,7 +253,7 @@ export function useQuickBattlesArtistLeaderboard() {
         console.log(`✅ Loaded ${data.length} Quick Battles artists`);
         
         // Return with QuickBattleArtistStats type
-        return data as any[]; // Type cast to any[] since the structure is different
+        return data as QuickBattleArtistStats[];
       } catch (error) {
         console.error('❌ Failed to fetch Quick Battles leaderboard:', error);
         return [];
