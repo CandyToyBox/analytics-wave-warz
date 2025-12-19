@@ -47,9 +47,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
   }
 
   try {
-    // Use materialized view for performant battle fetches.
     const { data, error } = await supabase
-      .from('mv_battle_stats')
+      .from('v_battles_public')
       .select(BATTLE_COLUMNS)
       .order('created_at', { ascending: false })
       .limit(BATTLE_FETCH_LIMIT);
@@ -113,9 +112,10 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
   try {
     const { data, error } = await supabase
-      .from('quick_battle_leaderboard')
+      .from('v_quick_battle_leaderboard_public')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(200);
 
     if (error || !data || data.length === 0) return null;
 
@@ -264,7 +264,11 @@ export async function saveTraderSnapshotToDB(stats: TraderProfileStats) {
 
 export async function fetchArtistLeaderboardFromDB(): Promise<ArtistLeaderboardStats[] | null> {
   try {
-    const { data, error } = await supabase.from('artist_leaderboard').select('*');
+    const { data, error } = await supabase
+      .from('v_artist_leaderboard_public')
+      .select('*')
+      .order('rank', { ascending: true })
+      .limit(200);
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any) => ({
@@ -297,7 +301,11 @@ export async function fetchArtistLeaderboardFromDB(): Promise<ArtistLeaderboardS
 
 export async function fetchTraderLeaderboardFromDB(): Promise<TraderLeaderboardEntry[] | null> {
   try {
-    const { data, error } = await supabase.from('trader_leaderboard').select('*');
+    const { data, error } = await supabase
+      .from('v_trader_leaderboard_public')
+      .select('*')
+      .order('rank', { ascending: true })
+      .limit(200);
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any) => ({
