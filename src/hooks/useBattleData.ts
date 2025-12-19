@@ -1,40 +1,35 @@
 // ============================================================================
-// WAVEWARZ ANALYTICS - REACT QUERY HOOKS (PRODUCTION VERSION)
+// WAVEWARZ ANALYTICS - REACT QUERY HOOKS (FIXED - USES PUBLIC VIEWS ONLY!)
 // ============================================================================
-// Uses public views (v_*_public) for READ-only API access
-// Calculates metrics client-side from immutable battle data
+// CRITICAL: This file uses PUBLIC VIEWS (v_*_public), NOT mv_battle_stats!
+// CRITICAL: This file is READ-ONLY - never writes to leaderboard tables!
 
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@supabase/supabase-js';
+import type { Battle, BattleWithMetrics, QuickBattleArtistStats } from '../utils/priceCalculations';
 import {
-  Battle,
-  BattleWithMetrics,
-  ArtistStats,
-  QuickBattleArtistStats,
   enrichBattlesWithMetrics,
   calculateGlobalArtistStats,
-  calculateQuickBattlesArtistStats,
-  calculateMainEventsArtistStats,
-  isQuickBattle,
-  isMainBattle,
-  isCommunityBattle,
 } from '../utils/priceCalculations';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+// Validate required environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  const missingVars = [
-    !supabaseUrl ? 'VITE_SUPABASE_URL' : null,
-    !supabaseKey ? 'VITE_SUPABASE_KEY' : null,
-  ].filter(Boolean).join(', ');
-  throw new Error(`Missing Supabase environment variable(s): ${missingVars}`);
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('❌ Missing required environment variables:');
+  console.error('VITE_SUPABASE_URL:', SUPABASE_URL ? '✅' : '❌');
+  console.error('VITE_SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? '✅' : '❌');
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Create Supabase client with anon key (for public views)
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+console.log('✅ Supabase client initialized for public views');
 
 // ============================================================================
-// HOOK 1: Fetch All Battles from Public View
+// HOOK 1: Fetch All Battles from PUBLIC VIEW
 // ============================================================================
 
 export function useAllBattles() {
@@ -44,18 +39,20 @@ export function useAllBattles() {
       console.log('🔄 Fetching all battles from v_battles_public...');
       
       try {
+        // ✅ CRITICAL: Use v_battles_public (PUBLIC VIEW), NOT mv_battle_stats!
         const { data, error } = await supabase
-          .from('v_battles_public')
+          .from('v_battles_public')  // ✅ This is the PUBLIC VIEW
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(200);
 
         if (error) {
-          console.error('❌ Database error:', error);
+          console.error('❌ Error fetching battles:', error);
           throw error;
         }
         
-        console.log(`✅ Loaded ${data.length} battles`);
-        return data as Battle[];
+        console.log(`✅ Loaded ${data?.length || 0} battles from public view`);
+        return (data || []) as Battle[];
       } catch (error) {
         console.error('❌ Failed to fetch battles:', error);
         return [];
@@ -68,7 +65,7 @@ export function useAllBattles() {
 }
 
 // ============================================================================
-// HOOK 2: Fetch Quick Battles Only (with Audius links)
+// HOOK 2: Fetch Quick Battles Only
 // ============================================================================
 
 export function useQuickBattles() {
@@ -84,12 +81,12 @@ export function useQuickBattles() {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('❌ Database error:', error);
+          console.error('❌ Error fetching Quick Battles:', error);
           throw error;
         }
         
-        console.log(`✅ Loaded ${data.length} Quick Battles`);
-        return data as Battle[];
+        console.log(`✅ Loaded ${data?.length || 0} Quick Battles`);
+        return (data || []) as Battle[];
       } catch (error) {
         console.error('❌ Failed to fetch Quick Battles:', error);
         return [];
@@ -102,7 +99,7 @@ export function useQuickBattles() {
 }
 
 // ============================================================================
-// HOOK 3: Fetch Main Battles Only (excludes Quick + Community)
+// HOOK 3: Fetch Main Battles Only
 // ============================================================================
 
 export function useMainBattles() {
@@ -118,12 +115,12 @@ export function useMainBattles() {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('❌ Database error:', error);
+          console.error('❌ Error fetching Main Battles:', error);
           throw error;
         }
         
-        console.log(`✅ Loaded ${data.length} Main Battles`);
-        return data as Battle[];
+        console.log(`✅ Loaded ${data?.length || 0} Main Battles`);
+        return (data || []) as Battle[];
       } catch (error) {
         console.error('❌ Failed to fetch Main Battles:', error);
         return [];
@@ -136,11 +133,11 @@ export function useMainBattles() {
 }
 
 // ============================================================================
-// HOOK 4: Fetch All Battles with Metrics (USD + Spotify)
+// HOOK 4: All Battles with USD/Spotify Metrics
 // ============================================================================
 
 export function useAllBattlesWithMetrics() {
-  const { data: battles = [], ...queryState } = useAllBattles();
+  const { data: battles = [], isLoading } = useAllBattles();
   
   return useQuery({
     queryKey: ['battles', 'with-metrics', battles.length],
@@ -149,62 +146,28 @@ export function useAllBattlesWithMetrics() {
       console.log('💰 Enriching battles with USD & Spotify metrics...');
       return enrichBattlesWithMetrics(battles);
     },
-    enabled: battles.length > 0,
+    enabled: battles.length > 0 && !isLoading,
     staleTime: 60000,
-    ...queryState,
   });
 }
 
 // ============================================================================
-// HOOK 5: Single Battle Details
-// ============================================================================
-
-export function useBattleDetails(battleId: string | null) {
-  return useQuery({
-    queryKey: ['battle', battleId],
-    queryFn: async () => {
-      if (!battleId) return null;
-      
-      console.log(`🔄 Fetching battle ${battleId}...`);
-      
-      try {
-        const { data, error } = await supabase
-          .from('v_battles_public')
-          .select('*')
-          .eq('battle_id', battleId)
-          .single();
-
-        if (error) throw error;
-        
-        console.log(`✅ Loaded battle ${battleId}`);
-        return data as Battle;
-      } catch (error) {
-        console.error(`❌ Failed to fetch battle ${battleId}:`, error);
-        return null;
-      }
-    },
-    enabled: !!battleId,
-    staleTime: 60000,
-    retry: 1,
-  });
-}
-
-// ============================================================================
-// HOOK 6: GLOBAL Artist Leaderboard (All Battle Types)
+// HOOK 5: GLOBAL Artist Leaderboard (READ-ONLY)
 // ============================================================================
 
 export function useGlobalArtistLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'artists', 'global'],
     queryFn: async () => {
-      console.log('🌍 Fetching GLOBAL artist leaderboard...');
+      console.log('🌍 Fetching GLOBAL artist leaderboard (READ-ONLY)...');
       
       try {
-        // Try to fetch from pre-computed leaderboard table first
+        // ✅ READ-ONLY from public view - NEVER write to this table!
         const { data, error } = await supabase
           .from('v_artist_leaderboard_public')
           .select('*')
-          .order('total_volume_generated', { ascending: false });
+          .order('total_volume_generated', { ascending: false })
+          .limit(100);
 
         if (error) {
           console.warn('⚠️ Pre-computed leaderboard not available, computing client-side...');
@@ -221,8 +184,8 @@ export function useGlobalArtistLeaderboard() {
           return [];
         }
         
-        console.log(`✅ Loaded ${data.length} artists`);
-        return data as ArtistStats[];
+        console.log(`✅ Loaded ${data?.length || 0} artists`);
+        return data || [];
       } catch (error) {
         console.error('❌ Failed to fetch artist leaderboard:', error);
         return [];
@@ -234,18 +197,17 @@ export function useGlobalArtistLeaderboard() {
 }
 
 // ============================================================================
-// HOOK 7: QUICK BATTLES Artist Leaderboard
+// HOOK 6: QUICK BATTLES Artist Leaderboard (READ-ONLY)
 // ============================================================================
 
 export function useQuickBattlesArtistLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'artists', 'quick'],
     queryFn: async () => {
-      console.log('⚡ Fetching QUICK BATTLES artist leaderboard...');
+      console.log('⚡ Fetching QUICK BATTLES artist leaderboard (READ-ONLY)...');
       
       try {
-        // Fetch from pre-computed leaderboard table
-        // Note: Returns QuickBattleArtistStats (uses audius_handle, not wallet_address)
+        // ✅ READ-ONLY from public view - NEVER write to this table!
         const { data, error } = await supabase
           .from('v_quick_battle_leaderboard_public')
           .select('*')
@@ -255,12 +217,10 @@ export function useQuickBattlesArtistLeaderboard() {
 
         if (error) {
           console.error('❌ Failed to fetch Quick Battles leaderboard:', error);
-          throw error;
+          return [];
         }
         
-        console.log(`✅ Loaded ${data.length} Quick Battles artists`);
-        
-        // Return with QuickBattleArtistStats type
+        console.log(`✅ Loaded ${data?.length || 0} Quick Battles artists`);
         return data as QuickBattleArtistStats[];
       } catch (error) {
         console.error('❌ Failed to fetch Quick Battles leaderboard:', error);
@@ -273,39 +233,30 @@ export function useQuickBattlesArtistLeaderboard() {
 }
 
 // ============================================================================
-// HOOK 8: MAIN EVENTS Artist Leaderboard
+// HOOK 7: MAIN EVENTS Artist Leaderboard (READ-ONLY)
 // ============================================================================
 
 export function useMainEventsArtistLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'artists', 'main-events'],
     queryFn: async () => {
-      console.log('🏆 Fetching MAIN EVENTS artist leaderboard...');
+      console.log('🏆 Fetching MAIN EVENTS artist leaderboard (READ-ONLY)...');
       
       try {
-        // Try to fetch from pre-computed leaderboard view
+        // ✅ READ-ONLY from public view - NEVER write to this table!
         const { data, error } = await supabase
           .from('v_main_events_leaderboard_public')
           .select('*')
-          .order('total_sol_earned', { ascending: false });
+          .order('total_sol_earned', { ascending: false })
+          .limit(100);
 
         if (error) {
-          console.warn('⚠️ Pre-computed Main Events leaderboard not available, computing client-side...');
-          
-          // Fallback: compute from Main Battles
-          const { data: mainBattles } = await supabase
-            .from('v_main_battles_public')
-            .select('*');
-          
-          if (mainBattles) {
-            return calculateMainEventsArtistStats(mainBattles as Battle[]);
-          }
-          
+          console.error('❌ Failed to fetch Main Events leaderboard:', error);
           return [];
         }
         
-        console.log(`✅ Loaded ${data.length} Main Events artists`);
-        return data as ArtistStats[];
+        console.log(`✅ Loaded ${data?.length || 0} Main Events artists`);
+        return data || [];
       } catch (error) {
         console.error('❌ Failed to fetch Main Events leaderboard:', error);
         return [];
@@ -317,16 +268,17 @@ export function useMainEventsArtistLeaderboard() {
 }
 
 // ============================================================================
-// HOOK 9: Trader Leaderboard
+// HOOK 8: Trader Leaderboard (READ-ONLY)
 // ============================================================================
 
 export function useTraderLeaderboard() {
   return useQuery({
     queryKey: ['leaderboard', 'traders'],
     queryFn: async () => {
-      console.log('💰 Fetching trader leaderboard...');
+      console.log('💰 Fetching trader leaderboard (READ-ONLY)...');
       
       try {
+        // ✅ READ-ONLY from public view - NEVER write to this table!
         const { data, error } = await supabase
           .from('v_trader_leaderboard_public')
           .select('*')
@@ -334,12 +286,12 @@ export function useTraderLeaderboard() {
           .limit(100);
 
         if (error) {
-          console.warn('⚠️ Trader leaderboard not available');
+          console.warn('⚠️ Trader leaderboard not available:', error);
           return [];
         }
         
-        console.log(`✅ Loaded ${data.length} traders`);
-        return data;
+        console.log(`✅ Loaded ${data?.length || 0} traders`);
+        return data || [];
       } catch (error) {
         console.error('❌ Failed to fetch trader leaderboard:', error);
         return [];
@@ -351,7 +303,7 @@ export function useTraderLeaderboard() {
 }
 
 // ============================================================================
-// HOOK 10: Dashboard Summary Stats
+// HOOK 9: Dashboard Summary Stats
 // ============================================================================
 
 export function useDashboardStats() {
@@ -366,20 +318,22 @@ export function useDashboardStats() {
       
       const enriched = await enrichBattlesWithMetrics(allBattles);
       
-      const communityBattles = allBattles.filter(isCommunityBattle);
+      const communityBattles = allBattles.filter(
+        (b: Battle) => b.is_community_battle === true
+      );
       
       const totalSolVolume = allBattles.reduce(
-        (sum, b) => sum + (b.artist1_pool || 0) + (b.artist2_pool || 0), 
+        (sum: number, b: Battle) => sum + (b.artist1_pool || 0) + (b.artist2_pool || 0), 
         0
       );
       
       const totalUsdVolume = enriched.reduce(
-        (sum, b) => sum + b.total_tvl_usd, 
+        (sum: number, b: BattleWithMetrics) => sum + b.total_tvl_usd, 
         0
       );
       
       const totalSpotifyEquivalent = enriched.reduce(
-        (sum, b) => sum + b.total_spotify_streams, 
+        (sum: number, b: BattleWithMetrics) => sum + b.total_spotify_streams, 
         0
       );
       
@@ -395,38 +349,6 @@ export function useDashboardStats() {
     },
     enabled: allBattles.length > 0,
     staleTime: 120000,
-  });
-}
-
-// ============================================================================
-// HOOK 11: API Documentation
-// ============================================================================
-
-export function useApiDocumentation() {
-  return useQuery({
-    queryKey: ['api', 'documentation'],
-    queryFn: async () => {
-      console.log('📚 Fetching API documentation...');
-      
-      try {
-        const { data, error } = await supabase
-          .from('v_api_endpoints')
-          .select('*')
-          .order('endpoint');
-
-        if (error) {
-          console.warn('⚠️ API documentation not available');
-          return [];
-        }
-        
-        return data;
-      } catch (error) {
-        console.error('❌ Failed to fetch API docs:', error);
-        return [];
-      }
-    },
-    staleTime: 300000, // 5 minutes
-    retry: 0,
   });
 }
 
