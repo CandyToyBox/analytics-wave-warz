@@ -1,293 +1,266 @@
-/**
- * WaveWarz Analytics - Battle Webhook Handler
- * Receives real-time battle data from production database
- * Syncs to analytics database for leaderboards and stats
- */
+// ============================================================================
+// WAVEWARZ ANALYTICS - BATTLE WEBHOOK HANDLER (OPTIMIZED)
+// ============================================================================
+// Handles INSERT and UPDATE webhooks from production database
+// CRITICAL: Skips updates for completed battles to prevent database overload
 
-import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only accept POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+// Rate limiter for active battles
+const updateCache = new Map<string, number>();
+const parsedRateLimit = process.env.BATTLE_RATE_LIMIT_MS !== undefined ? Number(process.env.BATTLE_RATE_LIMIT_MS) : NaN;
+const RATE_LIMIT_MS = Number.isFinite(parsedRateLimit) ? parsedRateLimit : 30000; // 30 seconds between updates for same battle
+const MAX_CACHE_SIZE = 1000;
 
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('🔍 BATTLE WEBHOOK HANDLER STARTED');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+// Initialize Supabase client with service role
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  throw new Error('Missing Supabase environment variables (VITE_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY)');
+}
+
+const supabase = createClient(
+  supabaseUrl,
+  supabaseServiceRoleKey
+);
+
+// ============================================================================
+// WEBHOOK HANDLER
+// ============================================================================
+
+export async function POST(request: Request) {
+  const startTime = Date.now();
+  
   try {
-    // Extract webhook data
-    const { type, table, record, old_record } = req.body;
-
+    const payload = await request.json();
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 BATTLE WEBHOOK HANDLER STARTED');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📥 Webhook Details:');
-    console.log('Type:', type);
-    console.log('Table:', table);
-    console.log('Battle ID:', record?.battle_id);
-
-    // Validate required data
-    if (!type || !table || !record) {
-      console.error('❌ Missing required webhook data');
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required webhook data' 
-      });
+    console.log(`Type: ${payload.type}`);
+    console.log(`Table: ${payload.table}`);
+    
+    // Handle INSERT (new battle created)
+    if (payload.type === 'INSERT') {
+      const result = await handleBattleInsert(payload);
+      const duration = Date.now() - startTime;
+      console.log(`⏱️ Webhook completed in ${duration}ms`);
+      return Response.json(result);
     }
-
-    // Check environment variables
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    console.log('🔐 Environment Check:');
-    console.log('VITE_SUPABASE_URL exists:', !!supabaseUrl);
-    console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!supabaseServiceKey);
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('❌ CRITICAL: Environment variables missing!');
-      return res.status(500).json({
-        success: false,
-        error: 'Missing environment variables',
-        supabaseUrl: !!supabaseUrl,
-        supabaseServiceKey: !!supabaseServiceKey,
-      });
+    
+    // Handle UPDATE (trading stats updated)
+    if (payload.type === 'UPDATE') {
+      const result = await handleBattleUpdate(payload);
+      const duration = Date.now() - startTime;
+      console.log(`⏱️ Webhook completed in ${duration}ms`);
+      return Response.json(result);
     }
-
-    console.log('URL value:', supabaseUrl);
-    console.log('🔌 Initializing Supabase client...');
-
-    // Initialize Supabase client with SERVICE ROLE key (bypasses RLS)
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    console.log('✅ Supabase client created');
-
-    // ═══════════════════════════════════════════════════════
-    // HANDLE INSERT - New Battle Created
-    // ═══════════════════════════════════════════════════════
-    if (type === 'INSERT') {
-      console.log('🆕 New battle INSERT detected');
-      console.log('Battle ID:', record.battle_id);
-      console.log('Artist 1:', record.artist1_name);
-      console.log('Artist 2:', record.artist2_name);
-      console.log('Quick Battle:', record.is_quick_battle);
-
-      const { data, error } = await supabase
-        .from('battles')
-        .upsert(
-          {
-            // Core identifiers
-            id: record.id,
-            battle_id: record.battle_id,
-            created_at: record.created_at,
-            status: record.status || 'Active',
-
-            // Artist information
-            artist1_name: record.artist1_name,
-            artist2_name: record.artist2_name,
-            artist1_wallet: record.artist1_wallet,
-            artist2_wallet: record.artist2_wallet,
-            artist1_twitter: record.artist1_twitter,
-            artist2_twitter: record.artist2_twitter,
-            artist1_music_link: record.artist1_music_link,
-            artist2_music_link: record.artist2_music_link,
-
-            // Trading stats (initially 0, updated later)
-            artist1_pool: record.artist1_pool || 0,
-            artist2_pool: record.artist2_pool || 0,
-            artist1_supply: record.artist1_supply || 0,
-            artist2_supply: record.artist2_supply || 0,
-            total_volume_a: record.total_volume_a || 0,
-            total_volume_b: record.total_volume_b || 0,
-            trade_count: record.trade_count || 0,
-            unique_traders: record.unique_traders || 0,
-
-            // Battle metadata
-            wavewarz_wallet: record.wavewarz_wallet,
-            creator_wallet: record.creator_wallet,
-            split_wallet_address: record.split_wallet_address,
-            image_url: record.image_url,
-            stream_link: record.stream_link,
-            battle_duration: record.battle_duration || 600,
-
-            // Battle types
-            is_quick_battle: record.is_quick_battle || false,
-            is_test_battle: record.is_test_battle || false,
-            is_community_battle: record.is_community_battle || false,
-            community_round_id: record.community_round_id,
-            
-            // Handle quick_battle_queue_id: BIGINT column but receives UUID strings
-            // If it's a UUID (contains hyphens), set to NULL, otherwise use the value
-            quick_battle_queue_id: (record.quick_battle_queue_id && typeof record.quick_battle_queue_id === 'string' && record.quick_battle_queue_id.includes('-')) 
-              ? null 
-              : record.quick_battle_queue_id,
-
-            // Quick Battle - Audius data
-            quick_battle_artist1_audius_handle: record.quick_battle_artist1_audius_handle,
-            quick_battle_artist2_audius_handle: record.quick_battle_artist2_audius_handle,
-            quick_battle_artist1_profile: record.quick_battle_artist1_profile,
-            quick_battle_artist2_profile: record.quick_battle_artist2_profile,
-            quick_battle_artist1_audius_profile_pic: record.quick_battle_artist1_audius_profile_pic,
-            quick_battle_artist2_audius_profile_pic: record.quick_battle_artist2_audius_profile_pic,
-
-            // Winner info (updated later)
-            winner_decided: record.winner_decided || false,
-            winner_artist_a: record.winner_artist_a,
-
-            // Timestamps
-            last_scanned_at: record.last_scanned_at,
-            recent_trades_cache: record.recent_trades_cache,
-          },
-          { onConflict: 'id' }
-        );
-
-      if (error) {
-        console.error('❌ UPSERT failed:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: error.message,
-          code: error.code,
-          details: error.details
-        });
-      }
-
-      console.log('✅ Battle inserted successfully!');
-      console.log('Battle ID:', record.battle_id);
-      
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Battle created in analytics DB',
-        battleId: record.battle_id,
-        isQuickBattle: record.is_quick_battle
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // HANDLE UPDATE - Battle Stats Updated (THE IMPORTANT ONE!)
-    // ═══════════════════════════════════════════════════════
-    if (type === 'UPDATE') {
-      console.log('🔄 Battle UPDATE detected - syncing trading data...');
-      console.log('Battle ID:', record.battle_id);
-      console.log('📊 Trading Stats:');
-      console.log('  Volume A:', record.total_volume_a);
-      console.log('  Volume B:', record.total_volume_b);
-      console.log('  Pool A:', record.artist1_pool);
-      console.log('  Pool B:', record.artist2_pool);
-      console.log('  Trades:', record.trade_count);
-      console.log('  Traders:', record.unique_traders);
-      console.log('  Winner Decided:', record.winner_decided);
-
-      const { data, error } = await supabase
-        .from('battles')
-        .update({
-          // Status updates
-          status: record.status,
-
-          // Trading stats - THE CRITICAL DATA FOR LEADERBOARDS!
-          artist1_pool: record.artist1_pool || 0,
-          artist2_pool: record.artist2_pool || 0,
-          artist1_supply: record.artist1_supply || 0,
-          artist2_supply: record.artist2_supply || 0,
-          total_volume_a: record.total_volume_a || 0,
-          total_volume_b: record.total_volume_b || 0,
-          trade_count: record.trade_count || 0,
-          unique_traders: record.unique_traders || 0,
-
-          // Winner information
-          winner_decided: record.winner_decided || false,
-          winner_artist_a: record.winner_artist_a,
-
-          // Quick Battle - Audius profiles (if populated)
-          quick_battle_artist1_audius_handle: record.quick_battle_artist1_audius_handle,
-          quick_battle_artist2_audius_handle: record.quick_battle_artist2_audius_handle,
-          quick_battle_artist1_profile: record.quick_battle_artist1_profile,
-          quick_battle_artist2_profile: record.quick_battle_artist2_profile,
-          quick_battle_artist1_audius_profile_pic: record.quick_battle_artist1_audius_profile_pic,
-          quick_battle_artist2_audius_profile_pic: record.quick_battle_artist2_audius_profile_pic,
-
-          // Metadata
-          last_scanned_at: record.last_scanned_at,
-          recent_trades_cache: record.recent_trades_cache,
-        })
-        .eq('battle_id', record.battle_id);
-
-      if (error) {
-        console.error('❌ UPDATE failed:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: error.message,
-          code: error.code,
-          details: error.details
-        });
-      }
-
-      console.log('✅ Battle stats updated successfully!');
-      console.log('📈 Summary:');
-      console.log('  Total Volume:', (record.total_volume_a || 0) + (record.total_volume_b || 0), 'SOL');
-      console.log('  Total Trades:', record.trade_count || 0);
-      console.log('  Unique Traders:', record.unique_traders || 0);
-
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Battle stats synced to analytics DB',
-        battleId: record.battle_id,
-        stats: {
-          volumeA: record.total_volume_a || 0,
-          volumeB: record.total_volume_b || 0,
-          trades: record.trade_count || 0,
-          traders: record.unique_traders || 0,
-          winnerDecided: record.winner_decided || false
-        }
-      });
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // HANDLE DELETE (Optional - for cleanup)
-    // ═══════════════════════════════════════════════════════
-    if (type === 'DELETE') {
-      console.log('🗑️  Battle DELETE detected');
-      console.log('Battle ID:', old_record?.battle_id);
-
-      // Only delete test battles, keep production data
-      if (old_record?.is_test_battle) {
-        const { error } = await supabase
-          .from('battles')
-          .delete()
-          .eq('battle_id', old_record.battle_id);
-
-        if (error) {
-          console.error('❌ DELETE failed:', error);
-          return res.status(500).json({ success: false, error: error.message });
-        }
-
-        console.log('✅ Test battle deleted from analytics DB');
-        return res.status(200).json({ 
-          success: true, 
-          message: 'Test battle deleted' 
-        });
-      } else {
-        console.log('ℹ️  Production battle - keeping in analytics DB');
-        return res.status(200).json({ 
-          success: true, 
-          message: 'Production battle preserved' 
-        });
-      }
-    }
-
-    // Unknown event type
-    console.log('⚠️  Unknown webhook type:', type);
-    return res.status(400).json({ 
-      success: false, 
-      message: `Unknown webhook type: ${type}`,
-      receivedType: type
-    });
-
+    
+    console.log(`⚠️ Unknown webhook type: ${payload.type}`);
+    return Response.json({ success: false, error: 'Unknown webhook type' });
+    
   } catch (error: any) {
-    console.error('💥 Webhook handler error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('❌ Webhook handler error:', error);
+    return Response.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// ============================================================================
+// INSERT HANDLER (New Battle Created)
+// ============================================================================
+
+async function handleBattleInsert(payload: any) {
+  const battleData = payload.record;
+  const battleId = battleData.battle_id;
+  
+  console.log(`✨ NEW BATTLE INSERT: ${battleId}`);
+  console.log(`Artists: ${battleData.artist1_name} vs ${battleData.artist2_name}`);
+  console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
+  
+  try {
+    // Insert new battle into analytics database
+    const { error } = await supabase
+      .from('battles')
+      .insert({
+        battle_id: battleData.battle_id,
+        status: battleData.status,
+        artist1_name: battleData.artist1_name,
+        artist2_name: battleData.artist2_name,
+        artist1_wallet: battleData.artist1_wallet,
+        artist2_wallet: battleData.artist2_wallet,
+        wavewarz_wallet: battleData.wavewarz_wallet,
+        artist1_music_link: battleData.artist1_music_link,
+        artist2_music_link: battleData.artist2_music_link,
+        image_url: battleData.image_url,
+        artist1_pool: battleData.artist1_pool || 0,
+        artist2_pool: battleData.artist2_pool || 0,
+        artist1_supply: battleData.artist1_supply || 0,
+        artist2_supply: battleData.artist2_supply || 0,
+        battle_duration: battleData.battle_duration,
+        winner_decided: battleData.winner_decided || false,
+        winner_artist_a: battleData.winner_artist_a,
+        artist1_twitter: battleData.artist1_twitter,
+        artist2_twitter: battleData.artist2_twitter,
+        stream_link: battleData.stream_link,
+        creator_wallet: battleData.creator_wallet,
+        is_community_battle: battleData.is_community_battle || false,
+        created_at: battleData.created_at,
+      });
+
+    if (error) {
+      console.error('❌ INSERT failed:', error);
+      return { success: false, error };
+    }
+    
+    console.log(`✅ Battle ${battleId} inserted successfully`);
+    
+    // Refresh materialized view to include new battle
+    try {
+      await supabase.rpc('refresh_battle_stats');
+      console.log('✅ Materialized view refreshed');
+    } catch (refreshError) {
+      console.warn('⚠️ Failed to refresh materialized view:', refreshError);
+    }
+    
+    return { success: true, action: 'inserted', battleId };
+    
+  } catch (error: any) {
+    console.error('❌ INSERT handler error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================================================
+// UPDATE HANDLER (Trading Stats Updated)
+// ============================================================================
+
+async function handleBattleUpdate(payload: any) {
+  const battleData = payload.record;
+  const battleId = battleData.battle_id;
+  
+  console.log(`🔄 Battle UPDATE detected: ${battleId}`);
+  console.log(`📊 Trading Stats:`);
+  console.log(`Pool A: ${battleData.artist1_pool || 0}`);
+  console.log(`Pool B: ${battleData.artist2_pool || 0}`);
+  console.log(`Winner Decided: ${battleData.winner_decided || false}`);
+  
+  try {
+    // ✅ CRITICAL CHECK: Is this battle already completed in our database?
+    const { data: existingBattle, error: fetchError } = await supabase
+      .from('battles')
+      .select('winner_decided, created_at, battle_duration')
+      .eq('battle_id', battleId)
+      .single();
+    
+    if (fetchError) {
+      console.error('❌ Failed to fetch existing battle:', fetchError);
+      return { success: false, error: fetchError };
+    }
+    
+    // If battle is already marked as completed, skip this update
+    if (existingBattle && existingBattle.winner_decided === true) {
+      console.log(`✅ Battle ${battleId} already completed - skipping update`);
+      return { 
+        success: true, 
+        action: 'skipped', 
+        reason: 'Battle already finalized',
+        battleId 
+      };
+    }
+    
+    // Check if battle is past its duration (automatically completed)
+    if (existingBattle) {
+      const createdAt = new Date(existingBattle.created_at).getTime();
+      const now = Date.now();
+      const durationMs = existingBattle.battle_duration * 1000;
+      const timeSinceCreation = now - createdAt;
+      
+      if (timeSinceCreation > durationMs && !battleData.winner_decided) {
+        console.log(`⏰ Battle ${battleId} is past duration (${Math.round(timeSinceCreation / 1000 / 60)} min) - treating as completed`);
+        // Don't skip, but mark it as completed in this update
+      }
+    }
+    
+    // If incoming data shows battle just completed, this is the FINAL update
+    if (battleData.winner_decided === true) {
+      console.log(`🏆 FINAL UPDATE: Battle ${battleId} completed!`);
+      console.log(`Winner: ${battleData.winner_artist_a ? 'Artist A' : 'Artist B'}`);
+      console.log(`Final Pool A: ${battleData.artist1_pool}`);
+      console.log(`Final Pool B: ${battleData.artist2_pool}`);
+    } else {
+      // ✅ RATE LIMITING: For active battles, max 1 update per 30 seconds
+      const lastUpdate = updateCache.get(battleId);
+      const now = Date.now();
+      
+      if (lastUpdate && (now - lastUpdate) < RATE_LIMIT_MS) {
+        const timeSinceUpdate = Math.round((now - lastUpdate) / 1000);
+        console.log(`⏸️ Rate limited: Battle ${battleId} - ${timeSinceUpdate}s since last update (limit: 30s)`);
+        return { 
+          success: true, 
+          action: 'rate_limited',
+          timeSinceUpdate,
+          battleId 
+        };
+      }
+      
+      // Record this update timestamp
+      updateCache.set(battleId, now);
+      
+      // Clean up old entries to prevent memory leak
+      if (updateCache.size > MAX_CACHE_SIZE) {
+        const cutoff = now - RATE_LIMIT_MS;
+        for (const [id, time] of updateCache.entries()) {
+          if (time < cutoff) updateCache.delete(id);
+        }
+      }
+    }
+    
+    // Perform the update
+    const { error: updateError } = await supabase
+      .from('battles')
+      .update({
+        artist1_pool: battleData.artist1_pool,
+        artist2_pool: battleData.artist2_pool,
+        artist1_supply: battleData.artist1_supply,
+        artist2_supply: battleData.artist2_supply,
+        winner_decided: battleData.winner_decided,
+        winner_artist_a: battleData.winner_artist_a,
+        status: battleData.status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('battle_id', battleId);
+
+    if (updateError) {
+      console.error('❌ UPDATE failed:', updateError);
+      return { success: false, error: updateError };
+    }
+
+    console.log(`✅ Battle ${battleId} updated successfully`);
+    
+    // Refresh materialized view if battle just completed
+    if (battleData.winner_decided === true) {
+      try {
+        await supabase.rpc('refresh_battle_stats');
+        console.log('✅ Materialized view refreshed (battle completed)');
+      } catch (refreshError) {
+        console.warn('⚠️ Failed to refresh materialized view:', refreshError);
+      }
+    }
+    
+    return { 
+      success: true, 
+      action: 'updated',
+      completed: battleData.winner_decided === true,
+      battleId 
+    };
+    
+  } catch (error: any) {
+    console.error('❌ UPDATE handler error:', error);
+    return { success: false, error: error.message };
   }
 }
