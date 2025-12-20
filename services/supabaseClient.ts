@@ -111,73 +111,308 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
 export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
   try {
-    const { data, error } = await supabase
+    // Try the view first
+    const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
       .select('*')
       .order('updated_at', { ascending: false })
       .limit(200);
 
-    if (error || !data || data.length === 0) return null;
+    // If view works and has data, use it (already aggregated)
+    if (!viewError && viewData && viewData.length > 0) {
+      console.log(`✅ Quick Battle leaderboard loaded from view (${viewData.length} entries)`);
+      return mapQuickBattleLeaderboardData(viewData);
+    }
 
-    return data.map((row: any, index: number) => {
-      const toNumber = (value: any) => (typeof value === 'number' ? value : value ? Number(value) : undefined);
-      // Prefer volume, then votes/score, then legacy total_volume fields
-      const artist1Score = row.artist1_volume ?? row.artist1_votes ?? row.artist1_score ?? row.total_volume_a;
-      const artist2Score = row.artist2_volume ?? row.artist2_votes ?? row.artist2_score ?? row.total_volume_b;
-      const totalVolume = row.total_volume ?? ((artist1Score || 0) + (artist2Score || 0));
-      const resolveId = () => {
-        if (row.id) return String(row.id);
-        if (row.audius_handle) return String(row.audius_handle);
-        if (row.queue_id) return String(row.queue_id);
-        if (row.battle_id) return String(row.battle_id);
-        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-        return `quick-${Date.now()}-${index}`;
-      };
+    // Fallback: Query battles table directly for Quick Battles and aggregate by song
+    console.warn("⚠️ View failed or empty, falling back to battles table for Quick Battles");
+    const { data: battlesData, error: battlesError } = await supabase
+      .from('battles')
+      .select(`
+        id,
+        battle_id,
+        created_at,
+        status,
+        artist1_name,
+        artist2_name,
+        artist1_music_link,
+        artist2_music_link,
+        artist1_pool,
+        artist2_pool,
+        total_volume_a,
+        total_volume_b,
+        trade_count,
+        unique_traders,
+        winner_decided,
+        winner_artist_a,
+        image_url,
+        last_scanned_at
+      `)
+      .eq('is_quick_battle', true)
+      .order('created_at', { ascending: false });
 
-      const winnerHandle = (() => {
-        if (row.winner_handle) return row.winner_handle;
-        if (row.winner) return row.winner;
-        if (row.winner_artist_a === true) return row.artist1_handle || row.quick_battle_artist1_audius_handle;
-        if (row.winner_artist_a === false) return row.artist2_handle || row.quick_battle_artist2_audius_handle;
-        return undefined;
-      })();
+    if (battlesError || !battlesData || battlesData.length === 0) {
+      console.warn("Failed to fetch Quick Battles from battles table", battlesError);
+      return null;
+    }
 
-      return {
-        id: resolveId(),
-        updatedAt: row.updated_at,
-        audiusHandle: row.audius_handle,
-        trackName: row.track_name ?? null,
-        // Backend stores track URL in audius_profile_pic for artwork; audius_profile_url is the canonical track page when present
-        audiusProfilePic: row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link,
-        audiusProfileUrl: row.audius_profile_url ?? row.audius_profile_pic ?? null,
-        battlesParticipated: toNumber(row.battles_participated),
-        totalTrades: toNumber(row.total_trades),
-        wins: toNumber(row.wins),
-        losses: toNumber(row.losses),
-        winRate: typeof row.win_rate === 'number' ? row.win_rate : toNumber(row.win_rate),
-        totalVolumeGenerated: toNumber(row.total_volume_generated),
-        queueId: row.queue_id ? String(row.queue_id) : undefined,
-        battleId: row.battle_id ? String(row.battle_id) : undefined,
-        createdAt: row.created_at,
-        status: row.status,
-        artist1Handle: row.artist1_handle || row.quick_battle_artist1_audius_handle,
-        artist2Handle: row.artist2_handle || row.quick_battle_artist2_audius_handle,
-        artist1ProfilePic: row.artist1_profile_pic || row.quick_battle_artist1_audius_profile_pic,
-        artist2ProfilePic: row.artist2_profile_pic || row.quick_battle_artist2_audius_profile_pic,
-        artist1Score,
-        artist2Score,
-        totalVolume: typeof totalVolume === 'number' ? totalVolume : undefined,
-        winnerHandle,
-      } as QuickBattleLeaderboardEntry;
-    });
+    console.log(`✅ Quick Battle data loaded from battles table (${battlesData.length} battles)`);
+    
+    // Aggregate by song (track name)
+    const aggregatedData = aggregateQuickBattlesBySong(battlesData);
+    console.log(`✅ Aggregated into ${aggregatedData.length} unique songs`);
+    
+    return mapQuickBattleLeaderboardData(aggregatedData);
   } catch (e) {
     console.warn("Failed to fetch quick battle leaderboard", e);
     return null;
   }
 }
 
+// Aggregate Quick Battles by song (track name)
+function aggregateQuickBattlesBySong(battles: any[]): any[] {
+  const songMap = new Map<string, any>();
+
+  for (const battle of battles) {
+    // Determine which track this battle represents
+    // For song vs song, we need to aggregate both artist1 and artist2 tracks separately
+    const extractTrackInfo = (artistName: string | null, musicLink: string | null) => {
+      if (!artistName) return null;
+      
+      // Extract track name from Audius URL if present
+      let trackName = artistName;
+      if (musicLink?.includes('audius.co')) {
+        const urlParts = musicLink.split('/');
+        const trackSlug = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
+        if (trackSlug) {
+          // Convert slug to readable name (replace hyphens with spaces, capitalize)
+          trackName = trackSlug
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+        }
+      }
+      
+      return {
+        trackName,
+        musicLink,
+        artistName
+      };
+    };
+
+    // Process both tracks in the battle
+    const track1 = extractTrackInfo(battle.artist1_name, battle.artist1_music_link);
+    const track2 = extractTrackInfo(battle.artist2_name, battle.artist2_music_link);
+
+    // Helper to aggregate a track's data
+    const aggregateTrack = (track: any, isWinner: boolean, score: number) => {
+      if (!track) return;
+
+      const key = track.trackName || track.musicLink || 'Unknown';
+      
+      if (!songMap.has(key)) {
+        songMap.set(key, {
+          track_name: track.trackName,
+          audius_profile_pic: track.musicLink,
+          audius_profile_url: track.musicLink,
+          battles_participated: 0,
+          wins: 0,
+          losses: 0,
+          total_volume_generated: 0,
+          total_trades: 0,
+          unique_traders: new Set<number>(),
+          created_at: battle.created_at,
+          updated_at: battle.last_scanned_at || battle.created_at,
+          image_url: battle.image_url,
+          battle_ids: []
+        });
+      }
+
+      const songData = songMap.get(key)!;
+      songData.battles_participated += 1;
+      songData.battle_ids.push(battle.battle_id);
+      
+      if (battle.winner_decided) {
+        if (isWinner) {
+          songData.wins += 1;
+        } else {
+          songData.losses += 1;
+        }
+      }
+
+      // Add volume
+      songData.total_volume_generated += score;
+      
+      // Add trades
+      if (battle.trade_count) {
+        songData.total_trades += battle.trade_count;
+      }
+      
+      // Track unique traders (approximate)
+      if (battle.unique_traders) {
+        // We can't properly track unique traders across battles without wallet addresses
+        // So we'll sum them (may include duplicates)
+        songData.unique_traders.add(battle.id);
+      }
+
+      // Keep most recent update time
+      if (battle.last_scanned_at && new Date(battle.last_scanned_at) > new Date(songData.updated_at)) {
+        songData.updated_at = battle.last_scanned_at;
+      }
+
+      // Keep best artwork
+      if (battle.image_url && !songData.image_url) {
+        songData.image_url = battle.image_url;
+      }
+    };
+
+    // Determine scores and winner
+    const score1 = battle.total_volume_a || battle.artist1_pool || 0;
+    const score2 = battle.total_volume_b || battle.artist2_pool || 0;
+    const winner1 = battle.winner_artist_a === true;
+    const winner2 = battle.winner_artist_a === false;
+
+    // Aggregate both tracks
+    aggregateTrack(track1, winner1, score1);
+    aggregateTrack(track2, winner2, score2);
+  }
+
+  // Convert map to array and calculate final stats
+  return Array.from(songMap.entries()).map(([key, data]) => ({
+    id: key,
+    track_name: data.track_name,
+    audius_profile_pic: data.audius_profile_pic,
+    audius_profile_url: data.audius_profile_url,
+    battles_participated: data.battles_participated,
+    wins: data.wins,
+    losses: data.losses,
+    win_rate: data.battles_participated > 0 
+      ? (data.wins / data.battles_participated) * 100 
+      : 0,
+    total_volume_generated: data.total_volume_generated,
+    total_trades: data.total_trades,
+    unique_traders: data.unique_traders.size,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    image_url: data.image_url,
+    battle_ids: data.battle_ids
+  }));
+}
+
+// Helper function to map Quick Battle data consistently
+function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry[] {
+  return data.map((row: any, index: number) => {
+    const toNumber = (value: any) => (typeof value === 'number' ? value : value ? Number(value) : undefined);
+    
+    // For aggregated song data, volume is already calculated
+    // For individual battle data, we need fallback chain
+    const totalVolume = row.total_volume_generated
+      ?? row.total_volume
+      ?? ((row.artist1_volume || 0) + (row.artist2_volume || 0))
+      ?? ((row.total_volume_a || 0) + (row.total_volume_b || 0))
+      ?? ((row.artist1_pool || 0) + (row.artist2_pool || 0))
+      ?? 0;
+    
+    // For backward compatibility with individual battle view
+    const artist1Score = row.artist1_volume 
+      ?? row.artist1_votes 
+      ?? row.artist1_score 
+      ?? row.total_volume_a
+      ?? row.artist1_pool
+      ?? 0;
+    
+    const artist2Score = row.artist2_volume 
+      ?? row.artist2_votes 
+      ?? row.artist2_score 
+      ?? row.total_volume_b
+      ?? row.artist2_pool
+      ?? 0;
+    
+    const resolveId = () => {
+      if (row.id) return String(row.id);
+      if (row.audius_handle) return String(row.audius_handle);
+      if (row.queue_id) return String(row.queue_id);
+      if (row.battle_id) return String(row.battle_id);
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+      return `quick-${Date.now()}-${index}`;
+    };
+
+    // Extract Audius handle from music links if not provided directly
+    const extractAudiusHandle = (link: string | null): string | null => {
+      if (!link) return null;
+      const match = link.match(/audius\.co\/([^\/]+)\//);
+      return match ? match[1] : null;
+    };
+
+    const artist1Handle = row.artist1_handle 
+      || row.quick_battle_artist1_audius_handle
+      || extractAudiusHandle(row.artist1_music_link)
+      || row.artist1_name;
+    
+    const artist2Handle = row.artist2_handle 
+      || row.quick_battle_artist2_audius_handle
+      || extractAudiusHandle(row.artist2_music_link)
+      || row.artist2_name;
+
+    const winnerHandle = (() => {
+      if (row.winner_handle) return row.winner_handle;
+      if (row.winner) return row.winner;
+      if (row.winner_artist_a === true) return artist1Handle;
+      if (row.winner_artist_a === false) return artist2Handle;
+      // If winner not decided, show current leader based on volume
+      if (!row.winner_decided) {
+        // Handle ties - no winner if scores are equal
+        if (artist1Score === artist2Score) return undefined;
+        return artist1Score > artist2Score ? artist1Handle : artist2Handle;
+      }
+      return undefined;
+    })();
+
+    // Calculate wins/losses if not provided
+    const wins = toNumber(row.wins) ?? (row.winner_decided && row.winner_artist_a ? 1 : 0);
+    const losses = toNumber(row.losses) ?? (row.winner_decided && !row.winner_artist_a ? 1 : 0);
+    const battlesParticipated = toNumber(row.battles_participated) ?? 1;
+
+    return {
+      id: resolveId(),
+      updatedAt: row.updated_at || row.last_scanned_at || row.created_at,
+      audiusHandle: row.audius_handle || extractAudiusHandle(row.artist1_music_link) || extractAudiusHandle(row.artist2_music_link),
+      trackName: row.track_name ?? row.artist1_name ?? null,
+      // Backend stores track URL in audius_profile_pic for artwork; audius_profile_url is the canonical track page when present
+      audiusProfilePic: row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link ?? row.image_url,
+      audiusProfileUrl: row.audius_profile_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? null,
+      battlesParticipated,
+      totalTrades: toNumber(row.total_trades) ?? toNumber(row.trade_count),
+      wins,
+      losses,
+      winRate: typeof row.win_rate === 'number' ? row.win_rate : (battlesParticipated > 0 ? (wins / battlesParticipated) * 100 : 0),
+      totalVolumeGenerated: toNumber(totalVolume),
+      queueId: row.queue_id ? String(row.queue_id) : undefined,
+      battleId: row.battle_id ? String(row.battle_id) : undefined,
+      createdAt: row.created_at,
+      status: row.status,
+      artist1Handle,
+      artist2Handle,
+      artist1ProfilePic: row.artist1_profile_pic || row.quick_battle_artist1_audius_profile_pic || row.artist1_music_link,
+      artist2ProfilePic: row.artist2_profile_pic || row.quick_battle_artist2_audius_profile_pic || row.artist2_music_link,
+      artist1Score,
+      artist2Score,
+      totalVolume: typeof totalVolume === 'number' ? totalVolume : undefined,
+      winnerHandle,
+    } as QuickBattleLeaderboardEntry;
+  });
+}
+
 export async function updateBattleDynamicStats(state: BattleState) {
     try {
+        console.log(`📊 Updating battle stats for ${state.battleId}:`, {
+            volumeA: state.totalVolumeA,
+            volumeB: state.totalVolumeB,
+            tradeCount: state.tradeCount,
+            uniqueTraders: state.uniqueTraders,
+            isQuickBattle: state.isQuickBattle
+        });
+
         const { error } = await supabase
             .from('battles')
             .update({
@@ -192,9 +427,13 @@ export async function updateBattleDynamicStats(state: BattleState) {
             })
             .eq('battle_id', state.battleId);
 
-        if (error) console.warn("Failed to update battle cache:", error);
+        if (error) {
+            console.warn(`❌ Failed to update battle cache for ${state.battleId}:`, error);
+        } else {
+            console.log(`✅ Battle stats saved successfully for ${state.battleId}`);
+        }
     } catch (e) {
-        console.error("Supabase update error", e);
+        console.error(`❌ Supabase update error for ${state.battleId}:`, e);
     }
 }
 
@@ -226,6 +465,8 @@ export async function uploadBattlesToSupabase(battles: BattleSummary[]) {
       is_community_battle: b.isCommunityBattle,
       community_round_id: b.communityRoundId,
       is_test_battle: b.isTestBattle || false,
+      is_quick_battle: b.isQuickBattle || false,
+      quick_battle_queue_id: b.quickBattleQueueId,
 
       // Preserve existing if possible, but map for initial upload
       total_volume_a: b.totalVolumeA || 0,
