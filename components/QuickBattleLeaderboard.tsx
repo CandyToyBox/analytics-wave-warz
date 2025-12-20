@@ -91,25 +91,6 @@ async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: stri
     }
   }
 
-  // Fallback: fetch the track page and scrape og:image
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), ARTWORK_REQUEST_TIMEOUT_MS);
-    const page = await fetch(effectiveUrl, { signal: controller.signal });
-    clearTimeout(timeout);
-
-    if (page.ok) {
-      const html = await page.text();
-      const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-      if (ogImage?.[1]) {
-        artworkCache.set(effectiveUrl, ogImage[1]);
-        return ogImage[1];
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to scrape Audius artwork:', err);
-  }
-
   artworkCache.set(effectiveUrl, null);
   return null;
 }
