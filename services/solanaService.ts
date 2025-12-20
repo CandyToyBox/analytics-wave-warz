@@ -325,9 +325,13 @@ async function fetchTransactionStats(battleAddress: string, vaultAddress: string
     volumeB: finalVolumeB.toFixed(4),
     tradeCount,
     uniqueTraders: traders.size,
-    txsFetched: fetchedCount
+    txsFetched: fetchedCount,
+    note: 'Volume split proportionally based on TVL ratio (A:B)'
   });
 
+  // NOTE: We split total volume proportionally between A and B based on TVL ratio
+  // because transaction data doesn't indicate which specific artist token was traded.
+  // This provides a reasonable approximation of volume attribution.
   return {
     volumeA: finalVolumeA, 
     volumeB: finalVolumeB,

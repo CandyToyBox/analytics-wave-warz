@@ -223,6 +223,8 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
       if (row.winner_artist_a === false) return artist2Handle;
       // If winner not decided, show current leader based on volume
       if (!row.winner_decided) {
+        // Handle ties - no winner if scores are equal
+        if (artist1Score === artist2Score) return undefined;
         return artist1Score > artist2Score ? artist1Handle : artist2Handle;
       }
       return undefined;
