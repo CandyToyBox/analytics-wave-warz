@@ -248,6 +248,7 @@ async function fetchAddressTransactions(address: string, limit: number = 50, bef
 }
 
 async function fetchTransactionStats(battleAddress: string, vaultAddress: string, tvlA: number, tvlB: number) {
+  console.log(`🔍 Fetching transaction stats for battle at ${battleAddress.substring(0, 8)}...`);
   let volumeA = 0;
   let volumeB = 0;
   let tradeCount = 0;
@@ -315,9 +316,21 @@ async function fetchTransactionStats(battleAddress: string, vaultAddress: string
     if (txs.length < 50) hasMore = false;
   }
 
+  const finalVolumeA = volumeA * ratioA;
+  const finalVolumeB = volumeA * (1 - ratioA);
+
+  console.log(`✅ Transaction stats fetched:`, {
+    totalVolume: volumeA.toFixed(4),
+    volumeA: finalVolumeA.toFixed(4),
+    volumeB: finalVolumeB.toFixed(4),
+    tradeCount,
+    uniqueTraders: traders.size,
+    txsFetched: fetchedCount
+  });
+
   return {
-    volumeA: volumeA * ratioA, 
-    volumeB: volumeA * (1 - ratioA),
+    volumeA: finalVolumeA, 
+    volumeB: finalVolumeB,
     tradeCount,
     uniqueTraders: traders.size,
     recentTrades
