@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BattleSummary, QuickBattleLeaderboardEntry } from '../types';
 import { useQuickBattleLeaderboard } from '../hooks/useBattleData';
 import { formatSol, formatUsd } from '../utils';
@@ -9,9 +9,218 @@ interface Props {
   solPrice: number;
 }
 
+const DISCOVERY_NODES = [
+  'https://discoveryprovider.audius.co',
+  'https://discoveryprovider2.audius.co',
+  'https://discoveryprovider3.audius.co',
+];
+const ARTWORK_SIZE_PREFERENCE = ['480x480', '1000x1000', '150x150'] as const;
+const ARTWORK_REQUEST_TIMEOUT_MS = 5000;
+const artworkCache = new Map<string, string | null>();
+
+async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: string | null): Promise<string | null> {
+  let effectiveUrl = audiusUrl || null;
+
+  if (!effectiveUrl && audiusHandle) {
+    const trimmedHandle = audiusHandle.trim();
+    if (/^https?:\/\//i.test(trimmedHandle)) {
+      effectiveUrl = trimmedHandle;
+    } else if (trimmedHandle.includes('/')) {
+      // Handles stored as username/track-slug
+      effectiveUrl = `https://audius.co/${trimmedHandle}`;
+    }
+  }
+
+  if (effectiveUrl) {
+    const normalized = effectiveUrl.trim().replace(/^\/\//, 'https://');
+    effectiveUrl = /^https?:\/\//i.test(normalized) ? normalized : normalized.startsWith('audius.co/') ? `https://${normalized}` : normalized;
+  }
+
+  if (!effectiveUrl) return null;
+
+  // Cache to avoid repeated API calls for the same track
+  if (artworkCache.has(effectiveUrl)) {
+    return artworkCache.get(effectiveUrl) ?? null;
+  }
+
+  // Already a direct image URL
+  if (/\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(effectiveUrl)) {
+    artworkCache.set(effectiveUrl, effectiveUrl);
+    return effectiveUrl;
+  }
+
+  // Matches audius.co/{username}/{track-slug}
+  const match = effectiveUrl.match(/audius\.co\/([^/]+)\/([^/?#]+)/i);
+
+  if (match) {
+    const [, username, trackSlug] = match;
+
+    for (const node of DISCOVERY_NODES) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), ARTWORK_REQUEST_TIMEOUT_MS);
+        const response = await fetch(
+          `${node}/v1/tracks?handle=${encodeURIComponent(username)}&slug=${encodeURIComponent(trackSlug)}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeout);
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const artwork = data?.data?.[0]?.artwork;
+        if (artwork) {
+          for (const size of ARTWORK_SIZE_PREFERENCE) {
+            if (artwork[size]) {
+              artworkCache.set(effectiveUrl, artwork[size]);
+              return artwork[size];
+            }
+          }
+          const firstAvailable = Object.values(artwork).find(Boolean);
+          if (typeof firstAvailable === 'string') {
+            artworkCache.set(effectiveUrl, firstAvailable);
+            return firstAvailable;
+          }
+          artworkCache.set(effectiveUrl, null);
+          return null;
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch from ${node} for ${username}/${trackSlug}:`, err);
+        continue;
+      }
+    }
+  }
+
+  // Fallback: fetch the track page and scrape og:image
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ARTWORK_REQUEST_TIMEOUT_MS);
+    const page = await fetch(effectiveUrl, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (page.ok) {
+      const html = await page.text();
+      const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+      if (ogImage?.[1]) {
+        artworkCache.set(effectiveUrl, ogImage[1]);
+        return ogImage[1];
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to scrape Audius artwork:', err);
+  }
+
+  artworkCache.set(effectiveUrl, null);
+  return null;
+}
+
+function useAudiusArtwork(audiusUrl?: string | null, audiusHandle?: string | null) {
+  const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setArtworkUrl(null);
+
+    fetchAudiusArtwork(audiusUrl, audiusHandle)
+      .then((url) => {
+        if (active && url) setArtworkUrl(url);
+      })
+      .catch((err) => {
+        console.warn('Audius artwork fetch failed for URL:', audiusUrl, err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [audiusUrl, audiusHandle]);
+
+  return artworkUrl;
+}
+
+const DatabaseRow: React.FC<{
+  entry: QuickBattleLeaderboardEntry;
+  index: number;
+  solPrice: number;
+  formatDate: (value?: string) => string;
+}> = ({ entry, index, solPrice, formatDate }) => {
+  const artworkUrl = useAudiusArtwork(entry.audiusProfilePic || entry.audiusProfileUrl, entry.audiusHandle);
+  const totalVolume = entry.totalVolumeGenerated ?? entry.totalVolume ?? 0;
+  const wins = entry.wins ?? 0;
+  const losses = entry.losses ?? 0;
+  const computedBattles = wins + losses;
+  const battles = entry.battlesParticipated ?? (computedBattles > 0 ? computedBattles : undefined);
+  const winRate = entry.winRate ?? (battles ? (wins / battles) * 100 : undefined);
+
+  return (
+    <tr className="hover:bg-navy-700/60 transition-colors">
+      <td className="p-4 pl-6">
+        <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${
+          index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
+          index === 1 ? 'bg-slate-300/20 text-slate-300' :
+          index === 2 ? 'bg-orange-700/20 text-orange-500' :
+          'text-ui-gray'
+        }`}>
+          {index + 1}
+        </span>
+      </td>
+      <td className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-navy-900 border border-navy-700 flex items-center justify-center">
+            {artworkUrl ? (
+              <img
+                src={artworkUrl}
+                alt={entry.trackName || entry.audiusHandle || 'Track artwork'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="text-wave-blue text-lg">🎵</div>
+            )}
+          </div>
+          <div>
+            <div className="text-white font-semibold">
+              {entry.trackName || entry.audiusHandle || 'Unknown Track'}
+            </div>
+            <div className="text-xs text-ui-gray">
+              {entry.audiusHandle ? `Audius • ${entry.audiusHandle}` : entry.status || 'Quick Battle'}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="p-4 text-right">
+        <div className="font-mono text-slate-200">{formatSol(totalVolume)}</div>
+        <div className="text-[10px] text-ui-gray">{formatUsd(totalVolume, solPrice)}</div>
+      </td>
+      <td className="p-4 text-right">
+        <div className="inline-flex flex-col items-end gap-1 text-xs text-white">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-navy-900 border border-navy-700">
+            <Trophy size={12} className="text-yellow-400" />
+            <span>{wins}W - {losses}L</span>
+          </div>
+          {typeof winRate === 'number' && (
+            <div className="text-ui-gray">{winRate.toFixed(1)}% win rate</div>
+          )}
+        </div>
+      </td>
+      <td className="p-4 text-right">
+        <div className="text-xs text-ui-gray">
+          Battles: {battles ?? '—'}
+        </div>
+        {entry.totalTrades && (
+          <div className="text-[10px] text-ui-gray mt-1">Trades: {entry.totalTrades}</div>
+        )}
+      </td>
+      <td className="p-4 pr-6 text-right text-ui-gray text-xs">
+        <div>{formatDate(entry.updatedAt || entry.createdAt)}</div>
+        {entry.status && <div className="mt-1 text-white font-semibold">{entry.status}</div>}
+      </td>
+    </tr>
+  );
+};
+
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
   const [search, setSearch] = useState('');
   const { data: quickEntries = [], isFetching } = useQuickBattleLeaderboard();
+  const isDatabaseMode = quickEntries.length > 0;
 
   const mapFallback = useMemo(() => {
     return () => {
@@ -53,12 +262,18 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     return entries
       .filter(entry => 
         !q || 
+        entry.trackName?.toLowerCase().includes(q) ||
+        entry.audiusHandle?.toLowerCase().includes(q) ||
         entry.artist1Handle?.toLowerCase().includes(q) || 
         entry.artist2Handle?.toLowerCase().includes(q) || 
         entry.queueId?.toLowerCase().includes(q) ||
         entry.battleId?.toLowerCase().includes(q)
       )
-      .sort((a, b) => (b.totalVolume || 0) - (a.totalVolume || 0));
+      .sort((a, b) => {
+        const volA = a.totalVolumeGenerated ?? a.totalVolume ?? 0;
+        const volB = b.totalVolumeGenerated ?? b.totalVolume ?? 0;
+        return volB - volA;
+      });
   }, [entries, search]);
 
   const formatDate = (value?: string) => {
@@ -85,7 +300,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by artist or queue ID..."
+            placeholder="Search by track, handle, or queue ID..."
             className="w-full bg-navy-800 border border-navy-700 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-wave-blue transition-all placeholder:text-ui-gray"
             type="text"
           />
@@ -105,84 +320,94 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
             <thead className="bg-navy-900 border-b border-navy-700 text-ui-gray text-xs uppercase tracking-wider">
               <tr>
                 <th className="p-4 pl-6 w-16">Rank</th>
-                <th className="p-4">Matchup</th>
+                <th className="p-4">{isDatabaseMode ? 'Track' : 'Matchup'}</th>
                 <th className="p-4 text-right">Volume</th>
-                <th className="p-4 text-right">Winner</th>
-                <th className="p-4 text-right">Queue / Battle</th>
-                <th className="p-4 pr-6 text-right">Created</th>
+                <th className="p-4 text-right">{isDatabaseMode ? 'Results' : 'Winner'}</th>
+                <th className="p-4 text-right">{isDatabaseMode ? 'Battles' : 'Queue / Battle'}</th>
+                <th className="p-4 pr-6 text-right">{isDatabaseMode ? 'Updated' : 'Created'}</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-navy-700">
-              {filteredEntries.map((entry, index) => (
-                <tr key={entry.id} className="hover:bg-navy-700/60 transition-colors">
-                  <td className="p-4 pl-6">
-                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${
-                      index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
-                      index === 1 ? 'bg-slate-300/20 text-slate-300' :
-                      index === 2 ? 'bg-orange-700/20 text-orange-500' :
-                      'text-ui-gray'
-                    }`}>
-                      {index + 1}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-blue/10 border border-navy-700">
-                          {entry.artist1ProfilePic ? (
-                            <img src={entry.artist1ProfilePic} alt={entry.artist1Handle} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold">
-                              {(entry.artist1Handle || 'A').slice(0, 2).toUpperCase()}
+              {isDatabaseMode
+                ? filteredEntries.map((entry, index) => (
+                    <DatabaseRow
+                      key={entry.id}
+                      entry={entry}
+                      index={index}
+                      solPrice={solPrice}
+                      formatDate={formatDate}
+                    />
+                  ))
+                : filteredEntries.map((entry, index) => (
+                    <tr key={entry.id} className="hover:bg-navy-700/60 transition-colors">
+                      <td className="p-4 pl-6">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${
+                          index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
+                          index === 1 ? 'bg-slate-300/20 text-slate-300' :
+                          index === 2 ? 'bg-orange-700/20 text-orange-500' :
+                          'text-ui-gray'
+                        }`}>
+                          {index + 1}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-blue/10 border border-navy-700">
+                              {entry.artist1ProfilePic ? (
+                                <img src={entry.artist1ProfilePic} alt={entry.artist1Handle} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold">
+                                  {(entry.artist1Handle || 'A').slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-white font-semibold">{entry.artist1Handle || 'Artist A'}</div>
-                          {typeof entry.artist1Score === 'number' && (
-                            <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist1Score)}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-green/10 border border-navy-700">
-                          {entry.artist2ProfilePic ? (
-                            <img src={entry.artist2ProfilePic} alt={entry.artist2Handle} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-wave-green font-bold">
-                              {(entry.artist2Handle || 'B').slice(0, 2).toUpperCase()}
+                            <div>
+                              <div className="text-white font-semibold">{entry.artist1Handle || 'Artist A'}</div>
+                              {typeof entry.artist1Score === 'number' && (
+                                <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist1Score)}</div>
+                              )}
                             </div>
-                          )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-green/10 border border-navy-700">
+                              {entry.artist2ProfilePic ? (
+                                <img src={entry.artist2ProfilePic} alt={entry.artist2Handle} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-wave-green font-bold">
+                                  {(entry.artist2Handle || 'B').slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <div className="text-white font-semibold">{entry.artist2Handle || 'Artist B'}</div>
+                              {typeof entry.artist2Score === 'number' && (
+                                <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist2Score)}</div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-white font-semibold">{entry.artist2Handle || 'Artist B'}</div>
-                          {typeof entry.artist2Score === 'number' && (
-                            <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist2Score)}</div>
-                          )}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="font-mono text-slate-200">{formatSol(entry.totalVolume || 0)}</div>
+                        <div className="text-[10px] text-ui-gray">{formatUsd(entry.totalVolume || 0, solPrice)}</div>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-navy-900 border border-navy-700 text-xs text-white">
+                          <Trophy size={12} className="text-yellow-400" />
+                          {entry.winnerHandle || 'Pending'}
                         </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="font-mono text-slate-200">{formatSol(entry.totalVolume || 0)}</div>
-                    <div className="text-[10px] text-ui-gray">{formatUsd(entry.totalVolume || 0, solPrice)}</div>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-navy-900 border border-navy-700 text-xs text-white">
-                      <Trophy size={12} className="text-yellow-400" />
-                      {entry.winnerHandle || 'Pending'}
-                    </div>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="text-xs text-ui-gray">Queue: {entry.queueId || '—'}</div>
-                    <div className="text-xs text-ui-gray mt-1">Battle: {entry.battleId || '—'}</div>
-                  </td>
-                  <td className="p-4 pr-6 text-right text-ui-gray text-xs">
-                    <div>{formatDate(entry.createdAt)}</div>
-                    {entry.status && <div className="mt-1 text-white font-semibold">{entry.status}</div>}
-                  </td>
-                </tr>
-              ))}
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="text-xs text-ui-gray">Queue: {entry.queueId || '—'}</div>
+                        <div className="text-xs text-ui-gray mt-1">Battle: {entry.battleId || '—'}</div>
+                      </td>
+                      <td className="p-4 pr-6 text-right text-ui-gray text-xs">
+                        <div>{formatDate(entry.createdAt)}</div>
+                        {entry.status && <div className="mt-1 text-white font-semibold">{entry.status}</div>}
+                      </td>
+                    </tr>
+                  ))}
 
               {!loading && filteredEntries.length === 0 && (
                 <tr>

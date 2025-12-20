@@ -120,12 +120,14 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any, index: number) => {
+      const toNumber = (value: any) => (typeof value === 'number' ? value : value ? Number(value) : undefined);
       // Prefer volume, then votes/score, then legacy total_volume fields
       const artist1Score = row.artist1_volume ?? row.artist1_votes ?? row.artist1_score ?? row.total_volume_a;
       const artist2Score = row.artist2_volume ?? row.artist2_votes ?? row.artist2_score ?? row.total_volume_b;
       const totalVolume = row.total_volume ?? ((artist1Score || 0) + (artist2Score || 0));
       const resolveId = () => {
         if (row.id) return String(row.id);
+        if (row.audius_handle) return String(row.audius_handle);
         if (row.queue_id) return String(row.queue_id);
         if (row.battle_id) return String(row.battle_id);
         if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -142,6 +144,18 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
 
       return {
         id: resolveId(),
+        updatedAt: row.updated_at,
+        audiusHandle: row.audius_handle,
+        trackName: row.track_name ?? null,
+        // Backend stores track URL in audius_profile_pic for artwork; audius_profile_url is the canonical track page when present
+        audiusProfilePic: row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link,
+        audiusProfileUrl: row.audius_profile_url ?? row.audius_profile_pic ?? null,
+        battlesParticipated: toNumber(row.battles_participated),
+        totalTrades: toNumber(row.total_trades),
+        wins: toNumber(row.wins),
+        losses: toNumber(row.losses),
+        winRate: typeof row.win_rate === 'number' ? row.win_rate : toNumber(row.win_rate),
+        totalVolumeGenerated: toNumber(row.total_volume_generated),
         queueId: row.queue_id ? String(row.queue_id) : undefined,
         battleId: row.battle_id ? String(row.battle_id) : undefined,
         createdAt: row.created_at,

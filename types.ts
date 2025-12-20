@@ -252,7 +252,18 @@ export interface QuickBattleLeaderboardEntry {
   queueId?: string;
   battleId?: string;
   createdAt?: string;
+  updatedAt?: string;
   status?: string;
+  audiusHandle?: string;
+  trackName?: string | null;
+  audiusProfilePic?: string | null; // Audius track or artwork URL used client-side to fetch/display artwork
+  audiusProfileUrl?: string | null;
+  battlesParticipated?: number;
+  wins?: number;
+  losses?: number;
+  winRate?: number;
+  totalVolumeGenerated?: number;
+  totalTrades?: number;
   artist1Handle?: string;
   artist2Handle?: string;
   artist1ProfilePic?: string;
