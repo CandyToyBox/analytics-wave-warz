@@ -10,9 +10,45 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- tailwind CDN blocked in sandbox; stub to allow local preview -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      window.tailwind = window.tailwind || { config: {} };
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              navy: {
+                950: '#0D1321', // Primary BG: Deep Space Navy
+                900: '#151e32', // Secondary BG
+                800: '#2D3748', // UI Element: Medium Gray
+                700: '#4A5568', // Lighter Border
+              },
+              wave: {
+                blue: '#22B5E8', // Primary Brand: Wave Blue
+                green: '#6FF34B', // Primary Brand: Wave Green
+                sage: '#95fe7c',  // Logo Green
+              },
+              action: {
+                green: '#16C784', // Functional Success
+              },
+              alert: {
+                red: '#EA3943',   // Functional Alert
+              },
+              ui: {
+                gray: '#A0AEC0',  // UI Element: Light Gray
+              }
+            },
+            fontFamily: {
+              sans: ['Rajdhani', 'sans-serif'],
+              body: ['Inter', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <!-- Polyfill Buffer globally as some Solana web3 internals may rely on it -->
+    <script type="module">
+      import { Buffer } from 'https://esm.sh/buffer@6.0.3';
+      window.Buffer = Buffer;
     </script>
   <script type="importmap">
 {
