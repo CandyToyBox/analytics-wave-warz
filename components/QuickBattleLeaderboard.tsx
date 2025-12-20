@@ -31,6 +31,11 @@ async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: stri
     }
   }
 
+  if (effectiveUrl) {
+    const normalized = effectiveUrl.trim().replace(/^\/\//, 'https://');
+    effectiveUrl = /^https?:\/\//i.test(normalized) ? normalized : normalized.startsWith('audius.co/') ? `https://${normalized}` : normalized;
+  }
+
   if (!effectiveUrl) return null;
 
   // Cache to avoid repeated API calls for the same track
@@ -46,42 +51,43 @@ async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: stri
 
   // Matches audius.co/{username}/{track-slug}
   const match = effectiveUrl.match(/audius\.co\/([^/]+)\/([^/?#]+)/i);
-  if (!match) return null;
 
-  const [, username, trackSlug] = match;
+  if (match) {
+    const [, username, trackSlug] = match;
 
-  for (const node of DISCOVERY_NODES) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), ARTWORK_REQUEST_TIMEOUT_MS);
-      const response = await fetch(
-        `${node}/v1/tracks?handle=${encodeURIComponent(username)}&slug=${encodeURIComponent(trackSlug)}`,
-        { signal: controller.signal }
-      );
-      clearTimeout(timeout);
+    for (const node of DISCOVERY_NODES) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), ARTWORK_REQUEST_TIMEOUT_MS);
+        const response = await fetch(
+          `${node}/v1/tracks?handle=${encodeURIComponent(username)}&slug=${encodeURIComponent(trackSlug)}`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeout);
 
-      if (!response.ok) continue;
+        if (!response.ok) continue;
 
-      const data = await response.json();
-      const artwork = data?.data?.[0]?.artwork;
-      if (artwork) {
-        for (const size of ARTWORK_SIZE_PREFERENCE) {
-          if (artwork[size]) {
-            artworkCache.set(effectiveUrl, artwork[size]);
-            return artwork[size];
+        const data = await response.json();
+        const artwork = data?.data?.[0]?.artwork;
+        if (artwork) {
+          for (const size of ARTWORK_SIZE_PREFERENCE) {
+            if (artwork[size]) {
+              artworkCache.set(effectiveUrl, artwork[size]);
+              return artwork[size];
+            }
           }
+          const firstAvailable = Object.values(artwork).find(Boolean);
+          if (typeof firstAvailable === 'string') {
+            artworkCache.set(effectiveUrl, firstAvailable);
+            return firstAvailable;
+          }
+          artworkCache.set(effectiveUrl, null);
+          return null;
         }
-        const firstAvailable = Object.values(artwork).find(Boolean);
-        if (typeof firstAvailable === 'string') {
-          artworkCache.set(effectiveUrl, firstAvailable);
-          return firstAvailable;
-        }
-        artworkCache.set(effectiveUrl, null);
-        return null;
+      } catch (err) {
+        console.warn(`Failed to fetch from ${node} for ${username}/${trackSlug}:`, err);
+        continue;
       }
-    } catch (err) {
-      console.warn(`Failed to fetch from ${node} for ${username}/${trackSlug}:`, err);
-      continue;
     }
   }
 
@@ -95,10 +101,10 @@ async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: stri
     if (page.ok) {
       const html = await page.text();
       const ogImage = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-       if (ogImage?.[1]) {
-         artworkCache.set(effectiveUrl, ogImage[1]);
-         return ogImage[1];
-       }
+      if (ogImage?.[1]) {
+        artworkCache.set(effectiveUrl, ogImage[1]);
+        return ogImage[1];
+      }
     }
   } catch (err) {
     console.warn('Failed to scrape Audius artwork:', err);
