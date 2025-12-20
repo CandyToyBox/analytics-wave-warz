@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BattleSummary, QuickBattleLeaderboardEntry } from '../types';
 import { useQuickBattleLeaderboard } from '../hooks/useBattleData';
 import { formatSol, formatUsd } from '../utils';
@@ -9,123 +9,13 @@ interface Props {
   solPrice: number;
 }
 
-const DISCOVERY_NODES = [
-  'https://discoveryprovider.audius.co',
-  'https://discoveryprovider2.audius.co',
-  'https://discoveryprovider3.audius.co',
-];
-const ARTWORK_SIZE_PREFERENCE = ['480x480', '1000x1000', '150x150'] as const;
-const ARTWORK_REQUEST_TIMEOUT_MS = 5000;
-const artworkCache = new Map<string, string | null>();
-
-async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: string | null): Promise<string | null> {
-  let effectiveUrl = audiusUrl || null;
-
-  if (!effectiveUrl && audiusHandle) {
-    const trimmedHandle = audiusHandle.trim();
-    if (/^https?:\/\//i.test(trimmedHandle)) {
-      effectiveUrl = trimmedHandle;
-    } else if (trimmedHandle.includes('/')) {
-      // Handles stored as username/track-slug
-      effectiveUrl = `https://audius.co/${trimmedHandle}`;
-    }
-  }
-
-  if (effectiveUrl) {
-    const normalized = effectiveUrl.trim().replace(/^\/\//, 'https://');
-    effectiveUrl = /^https?:\/\//i.test(normalized) ? normalized : normalized.startsWith('audius.co/') ? `https://${normalized}` : normalized;
-  }
-
-  if (!effectiveUrl) return null;
-
-  // Cache to avoid repeated API calls for the same track
-  if (artworkCache.has(effectiveUrl)) {
-    return artworkCache.get(effectiveUrl) ?? null;
-  }
-
-  // Already a direct image URL
-  if (/\.(jpe?g|png|webp|gif)(?:$|[?#])/i.test(effectiveUrl)) {
-    artworkCache.set(effectiveUrl, effectiveUrl);
-    return effectiveUrl;
-  }
-
-  // Matches audius.co/{username}/{track-slug}
-  const match = effectiveUrl.match(/audius\.co\/([^/]+)\/([^/?#]+)/i);
-
-  if (match) {
-    const [, username, trackSlug] = match;
-
-    for (const node of DISCOVERY_NODES) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), ARTWORK_REQUEST_TIMEOUT_MS);
-        const response = await fetch(
-          `${node}/v1/tracks?handle=${encodeURIComponent(username)}&slug=${encodeURIComponent(trackSlug)}`,
-          { signal: controller.signal }
-        );
-        clearTimeout(timeout);
-
-        if (!response.ok) continue;
-
-        const data = await response.json();
-        const artwork = data?.data?.[0]?.artwork;
-        if (artwork) {
-          for (const size of ARTWORK_SIZE_PREFERENCE) {
-            if (artwork[size]) {
-              artworkCache.set(effectiveUrl, artwork[size]);
-              return artwork[size];
-            }
-          }
-          const firstAvailable = Object.values(artwork).find(Boolean);
-          if (typeof firstAvailable === 'string') {
-            artworkCache.set(effectiveUrl, firstAvailable);
-            return firstAvailable;
-          }
-          artworkCache.set(effectiveUrl, null);
-          return null;
-        }
-      } catch (err) {
-        console.warn(`Failed to fetch from ${node} for ${username}/${trackSlug}:`, err);
-        continue;
-      }
-    }
-  }
-
-  console.warn('Audius artwork not available via discovery nodes; track will display without artwork:', effectiveUrl);
-  artworkCache.set(effectiveUrl, null);
-  return null;
-}
-
-function useAudiusArtwork(audiusUrl?: string | null, audiusHandle?: string | null) {
-  const [artworkUrl, setArtworkUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    setArtworkUrl(null);
-
-    fetchAudiusArtwork(audiusUrl, audiusHandle)
-      .then((url) => {
-        if (active && url) setArtworkUrl(url);
-      })
-      .catch((err) => {
-        console.warn('Audius artwork fetch failed for URL:', audiusUrl, err);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [audiusUrl, audiusHandle]);
-
-  return artworkUrl;
-}
-
 const DatabaseRow: React.FC<{
   entry: QuickBattleLeaderboardEntry;
   index: number;
   solPrice: number;
   formatDate: (value?: string) => string;
 }> = ({ entry, index, solPrice, formatDate }) => {
-  const artworkUrl = useAudiusArtwork(entry.audiusProfilePic || entry.audiusProfileUrl, entry.audiusHandle);
+  const artworkUrl = entry.audiusProfilePic ?? null;
   const totalVolume = entry.totalVolumeGenerated ?? entry.totalVolume ?? 0;
   const wins = entry.wins ?? 0;
   const losses = entry.losses ?? 0;
@@ -151,7 +41,7 @@ const DatabaseRow: React.FC<{
             {artworkUrl ? (
               <img
                 src={artworkUrl}
-                alt={entry.trackName || entry.audiusHandle || 'Track artwork'}
+                alt={entry.trackName || 'Track artwork'}
                 className="w-full h-full object-cover"
               />
             ) : (
