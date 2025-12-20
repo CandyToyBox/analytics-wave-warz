@@ -91,7 +91,7 @@ async function fetchAudiusArtwork(audiusUrl?: string | null, audiusHandle?: stri
     }
   }
 
-  console.warn('Audius artwork not available via discovery nodes:', effectiveUrl);
+  console.warn('Audius artwork not available via discovery nodes; track will display without artwork:', effectiveUrl);
   artworkCache.set(effectiveUrl, null);
   return null;
 }
