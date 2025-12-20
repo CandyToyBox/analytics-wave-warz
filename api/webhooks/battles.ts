@@ -6,10 +6,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Rate limiter for active battles
-const updateCache = new Map<string, number>();
-const RATE_LIMIT_MS = 30000; // 30 seconds between updates for same battle
-
 // Initialize Supabase client with service role
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -184,31 +180,18 @@ async function handleBattleUpdate(payload: any) {
       console.log(`Final Pool A: ${battleData.artist1_pool}`);
       console.log(`Final Pool B: ${battleData.artist2_pool}`);
     } else {
-      // ✅ RATE LIMITING: For active battles, max 1 update per 30 seconds
-      const lastUpdate = updateCache.get(battleId);
-      const now = Date.now();
-      
-      if (lastUpdate && (now - lastUpdate) < RATE_LIMIT_MS) {
-        const timeSinceUpdate = Math.round((now - lastUpdate) / 1000);
-        console.log(`⏸️ Rate limited: Battle ${battleId} - ${timeSinceUpdate}s since last update (limit: 30s)`);
-        return { 
-          success: true, 
-          action: 'rate_limited',
-          timeSinceUpdate,
-          battleId 
-        };
-      }
-      
-      // Record this update timestamp
-      updateCache.set(battleId, now);
-      
-      // Clean up old entries to prevent memory leak
-      if (updateCache.size > 1000) {
-        const cutoff = now - RATE_LIMIT_MS;
-        for (const [id, time] of updateCache.entries()) {
-          if (time < cutoff) updateCache.delete(id);
-        }
-      }
+      // ✅ SKIP UPDATES FOR ACTIVE BATTLES
+      // Only process INSERT (battle initiation) and final UPDATE (winner_decided=true)
+      // This prevents thousands of webhook triggers during active battles
+      // Battle data will be fetched on-demand when users view battles
+      console.log(`⏭️ Skipping UPDATE for active battle ${battleId} (winner not decided yet)`);
+      console.log(`   Battle data will be fetched on-demand. Updates only processed when battle ends.`);
+      return { 
+        success: true, 
+        action: 'skipped_active_battle',
+        reason: 'Battle still active - updates only processed when winner decided',
+        battleId 
+      };
     }
     
     // ✅ SUPABASE V2: No "returning" option, just .update()

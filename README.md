@@ -90,6 +90,31 @@ The app communicates directly with the WaveWarz Solana Program (`9TUfEHvk5fN5vog
 
 ---
 
+## 🚀 Deployment & Configuration
+
+### Application Deployment
+
+The application is deployed on Vercel and connects to Supabase for data storage.
+
+### Post-Deployment Configuration
+
+After deploying the application code, you'll need to configure Supabase settings manually via the Supabase Dashboard. See [`SUPABASE_CONFIGURATION.md`](./SUPABASE_CONFIGURATION.md) for detailed instructions on:
+
+1. **Database Index Optimization** - Run the SQL migration to remove unused indexes and optimize performance
+2. **Auth Server Connection Pool** - Switch from fixed to percentage-based connection allocation for better scaling
+3. **Webhook Verification** - Ensure the battle webhook is configured correctly
+
+These configurations are **not in application code** and require manual setup through the Supabase Dashboard.
+
+### Database Migrations
+
+SQL migrations are located in the [`migrations/`](./migrations/) directory. See [`migrations/README.md`](./migrations/README.md) for:
+- How to apply migrations
+- Validation queries
+- Rollback instructions
+
+---
+
 ## 🧮 Settlement Logic
 
 The calculator implements the specific WaveWarz distribution blueprint:
