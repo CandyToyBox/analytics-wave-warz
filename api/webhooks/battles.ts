@@ -183,9 +183,9 @@ async function handleBattleUpdate(payload: any) {
       // ✅ SKIP UPDATES FOR ACTIVE BATTLES
       // Only process INSERT (battle initiation) and final UPDATE (winner_decided=true)
       // This prevents thousands of webhook triggers during active battles
-      // Solana blockchain data will be fetched on-demand when users view battles
+      // Battle data will be fetched on-demand when users view battles
       console.log(`⏭️ Skipping UPDATE for active battle ${battleId} (winner not decided yet)`);
-      console.log(`   Blockchain data will be fetched on-demand. Updates only processed when battle ends.`);
+      console.log(`   Battle data will be fetched on-demand. Updates only processed when battle ends.`);
       return { 
         success: true, 
         action: 'skipped_active_battle',
