@@ -29,6 +29,18 @@ export async function POST(request: Request) {
     console.log(`Type: ${payload.type}`);
     console.log(`Table: ${payload.table}`);
     
+    // ✅ TABLE FILTERING: Only process battles table
+    // This prevents unnecessary webhook processing for unrelated tables
+    if (payload.table !== 'battles') {
+      console.log(`⏭️ Skipping webhook trigger for unrelated table: ${payload.table}`);
+      return Response.json({ 
+        success: true, 
+        action: 'skipped_table',
+        reason: `Only 'battles' table is processed`,
+        table: payload.table 
+      });
+    }
+    
     // Handle INSERT (new battle created)
     if (payload.type === 'INSERT') {
       const result = await handleBattleInsert(payload);
@@ -136,6 +148,7 @@ async function handleBattleUpdate(payload: any) {
   console.log(`Pool A: ${battleData.artist1_pool || 0}`);
   console.log(`Pool B: ${battleData.artist2_pool || 0}`);
   console.log(`Winner Decided: ${battleData.winner_decided || false}`);
+  console.log(`Winner Artist A: ${battleData.winner_artist_a ?? 'N/A'}`);
   
   try {
     // ✅ CRITICAL CHECK: Is this battle already completed in our database?
@@ -185,12 +198,17 @@ async function handleBattleUpdate(payload: any) {
       // This prevents thousands of webhook triggers during active battles
       // Battle data will be fetched on-demand when users view battles
       console.log(`⏭️ Skipping UPDATE for active battle ${battleId} (winner not decided yet)`);
-      console.log(`   Battle data will be fetched on-demand. Updates only processed when battle ends.`);
+      console.log(`   Reason: Battle data will be fetched on-demand.`);
+      console.log(`   Updates only processed when battle ends (winner_decided=true).`);
+      console.log(`   Current Pool A: ${battleData.artist1_pool || 0} SOL`);
+      console.log(`   Current Pool B: ${battleData.artist2_pool || 0} SOL`);
       return { 
         success: true, 
         action: 'skipped_active_battle',
         reason: 'Battle still active - updates only processed when winner decided',
-        battleId 
+        battleId,
+        poolA: battleData.artist1_pool || 0,
+        poolB: battleData.artist2_pool || 0
       };
     }
     
