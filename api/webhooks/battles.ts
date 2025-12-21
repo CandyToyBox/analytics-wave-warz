@@ -148,7 +148,15 @@ async function handleBattleUpdate(payload: any) {
   console.log(`Pool A: ${battleData.artist1_pool || 0}`);
   console.log(`Pool B: ${battleData.artist2_pool || 0}`);
   console.log(`Winner Decided: ${battleData.winner_decided || false}`);
-  console.log(`Winner Artist A: ${battleData.winner_artist_a ?? 'N/A'}`);
+  
+  // Log winner information clearly
+  if (battleData.winner_artist_a === true) {
+    console.log(`Winner: Artist A`);
+  } else if (battleData.winner_artist_a === false) {
+    console.log(`Winner: Artist B`);
+  } else {
+    console.log(`Winner: TBD`);
+  }
   
   try {
     // ✅ CRITICAL CHECK: Is this battle already completed in our database?

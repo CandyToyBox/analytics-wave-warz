@@ -6,19 +6,24 @@
 -- 
 -- Summary:
 -- - Update existing battles with correct is_quick_battle flag
--- - Uses battle duration and naming patterns to identify Quick Battles
+-- - Quick Battles are identified by Audius music links and short durations
 -- - Ensures Quick Battles leaderboard displays correctly
+--
+-- Constants:
+-- QUICK_BATTLE_MAX_DURATION_SECONDS = 1200 (20 minutes)
+-- QUICK_BATTLE_EXTENDED_DURATION_SECONDS = 3600 (60 minutes, for Audius-linked battles)
 -- ============================================================================
 
 -- STEP 1: Update battles with short durations (≤ 1200 seconds / 20 minutes)
 -- These are typically Quick Battles
+-- Constant: QUICK_BATTLE_MAX_DURATION_SECONDS = 1200
 -- Reason: Quick Battles are designed to be short, fast-paced competitions
 -- Safety: Only updates battles where is_quick_battle is not already set
 
 UPDATE battles
 SET is_quick_battle = true
 WHERE 
-  battle_duration <= 1200 
+  battle_duration <= 1200  -- QUICK_BATTLE_MAX_DURATION_SECONDS
   AND (is_quick_battle IS NULL OR is_quick_battle = false)
   AND (is_test_battle IS NULL OR is_test_battle = false);
 
@@ -29,8 +34,9 @@ WHERE
 -- ============================================================================
 
 -- STEP 2: Update battles with Audius music links (song battles)
--- These are typically Quick Battles featuring Audius tracks
--- Reason: Quick Battles often feature Audius songs vs songs
+-- PRIMARY INDICATOR: Quick Battles feature Audius tracks (song vs song)
+-- Constant: QUICK_BATTLE_EXTENDED_DURATION_SECONDS = 3600
+-- Reason: Quick Battles contain Audius links for music streaming
 -- Safety: Only updates if duration is reasonable for Quick Battles
 
 UPDATE battles
@@ -40,7 +46,7 @@ WHERE
     artist1_music_link LIKE '%audius.co%' 
     OR artist2_music_link LIKE '%audius.co%'
   )
-  AND battle_duration <= 3600
+  AND battle_duration <= 3600  -- QUICK_BATTLE_EXTENDED_DURATION_SECONDS
   AND (is_quick_battle IS NULL OR is_quick_battle = false)
   AND (is_test_battle IS NULL OR is_test_battle = false);
 
@@ -50,10 +56,11 @@ WHERE
 
 -- ============================================================================
 
--- STEP 3: Update battles with specific naming patterns indicating Quick Battles
--- Pattern: "x Hurric4n3Ike" or similar patterns often used in Quick Battles
--- Reason: Quick Battles often have specific naming conventions
--- Safety: Only updates if not already marked
+-- STEP 3: Update battles with specific naming patterns (OPTIONAL)
+-- Pattern: "x Hurric4n3Ike" or "Wavez x" patterns seen in historical Quick Battles
+-- NOTE: This is supplementary to Audius link detection (Step 2)
+-- Reason: Some Quick Battles may use specific naming conventions
+-- Safety: Only updates if not already marked and duration is reasonable
 
 UPDATE battles
 SET is_quick_battle = true
@@ -64,9 +71,13 @@ WHERE
     OR artist1_name LIKE '%x Hurric4n3Ike'
     OR artist2_name LIKE '%x Hurric4n3Ike'
   )
-  AND battle_duration <= 3600
+  AND battle_duration <= 3600  -- QUICK_BATTLE_EXTENDED_DURATION_SECONDS
   AND (is_quick_battle IS NULL OR is_quick_battle = false)
   AND (is_test_battle IS NULL OR is_test_battle = false);
+
+-- Note: This step catches any Quick Battles that may not have Audius links
+-- but use the historical naming convention. Can be skipped if all Quick Battles
+-- are guaranteed to have Audius links.
 
 -- Verification after Step 3:
 -- SELECT artist1_name, artist2_name, battle_duration, is_quick_battle 

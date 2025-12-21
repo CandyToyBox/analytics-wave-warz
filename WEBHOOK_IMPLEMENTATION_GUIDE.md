@@ -86,6 +86,7 @@ export async function fetchQuickBattleLeaderboardFromDB() {
 #### Song Aggregation
 Quick Battles are aggregated by song/track:
 
+- **Key Characteristic**: Quick Battles contain Audius music links (song vs song battles)
 - Combines multiple battles featuring the same song
 - Calculates total volume, wins, losses across all battles
 - Extracts Audius track information from music links
@@ -146,6 +147,9 @@ vercel --prod
 ### Step 2: Apply Database Migration
 
 ```bash
+# IMPORTANT: Use a restricted database user with migration privileges
+# DO NOT use postgres superuser in production
+
 # Option A: Using Supabase CLI
 supabase db push
 
@@ -155,8 +159,8 @@ supabase db push
 # 3. Execute the migration
 # 4. Run verification queries
 
-# Option C: Using psql
-psql -h <your-db-host> -U postgres -d <your-database> \
+# Option C: Using psql with restricted user
+psql -h <your-db-host> -U <migration-user> -d <your-database> \
   -f migrations/002_update_quick_battle_flags.sql
 ```
 
