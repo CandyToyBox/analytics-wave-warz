@@ -10,6 +10,12 @@ interface ImportMetaEnv {
   readonly VITE_HELIUS_API_KEY?: string;
 }
 
+declare namespace NodeJS {
+  interface ProcessEnv {
+    SUPABASE_JWT_SECRET?: string;
+  }
+}
+
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
