@@ -3,10 +3,16 @@ import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleSt
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
-// Replace defaults with your official Project URL and Anon Key when ready.
-// The code will prefer environment variables if they exist.
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://gshwqoplsxgqbdkssoit.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzaHdxb3Bsc3hncWJka3Nzb2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NTQ2NDksImV4cCI6MjA3OTUzMDY0OX0.YNv0QgQfUMsrDyWQB3tnKVshal_h7ZjuobKWrQjfzlQ';
+// Validate required environment variables
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('❌ Missing required environment variables:');
+  console.error('VITE_SUPABASE_URL:', SUPABASE_URL ? '✅' : '❌');
+  console.error('VITE_SUPABASE_KEY:', SUPABASE_ANON_KEY ? '✅' : '❌');
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_KEY. Please configure these in your .env file.');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
