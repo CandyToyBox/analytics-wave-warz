@@ -5,16 +5,29 @@ import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleSt
 // OFFICIAL WAVEWARZ DB CONNECTION
 // Replace defaults with your official Project URL and Anon Key when ready.
 // The code will prefer environment variables if they exist.
-const SUPABASE_URL =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
-  process?.env?.VITE_SUPABASE_URL ||
-  'https://gshwqoplsxgqbdkssoit.supabase.co';
+const hasViteEnv = (meta: unknown): meta is { env: Record<string, string | undefined> } => {
+  if (typeof meta !== 'object' || meta === null || !('env' in meta)) return false;
+  const { env } = meta as { env?: unknown };
+  return env !== null && typeof env === 'object';
+};
+
+const importMetaSafe = typeof import.meta !== 'undefined' ? import.meta : undefined;
+const viteEnv = hasViteEnv(importMetaSafe) ? importMetaSafe.env : undefined;
+
+const getEnv = (key: string): string | undefined => {
+  const fromVite = viteEnv?.[key];
+  if (fromVite !== undefined) return fromVite;
+  if (typeof process !== 'undefined' && process.env) return process.env[key];
+};
+
+const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
 const SUPABASE_ANON_KEY =
-  (typeof import.meta !== 'undefined' &&
-    ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (import.meta as any).env?.VITE_SUPABASE_KEY)) ||
-  process?.env?.VITE_SUPABASE_ANON_KEY ||
-  process?.env?.VITE_SUPABASE_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzaHdxb3Bsc3hncWJka3Nzb2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5NTQ2NDksImV4cCI6MjA3OTUzMDY0OX0.YNv0QgQfUMsrDyWQB3tnKVshal_h7ZjuobKWrQjfzlQ';
+  getEnv('VITE_SUPABASE_ANON_KEY') ||
+  getEnv('VITE_SUPABASE_KEY');
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error('Missing Supabase configuration (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)');
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
