@@ -3,14 +3,14 @@ import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleSt
 
 // --- CONFIGURATION ---
 // Validate required environment variables
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_KEY;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error('❌ Missing required environment variables:');
   console.error('VITE_SUPABASE_URL:', SUPABASE_URL ? '✅' : '❌');
-  console.error('VITE_SUPABASE_KEY:', SUPABASE_ANON_KEY ? '✅' : '❌');
-  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_KEY');
+  console.error('VITE_SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? '✅' : '❌');
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY/VITE_SUPABASE_KEY');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
