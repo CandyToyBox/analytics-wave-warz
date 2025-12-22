@@ -132,7 +132,20 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
 export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
   try {
-    // Try the view first
+    // 1) Try dedicated leaderboard table (preferred when populated)
+    const { data: tableData, error: tableError } = await supabase
+      .from('quick_battle_leaderboard')
+      .select('*')
+      .eq('is_test_artist', false)
+      .order('total_volume_generated', { ascending: false })
+      .limit(200);
+
+    if (!tableError && tableData && tableData.length > 0) {
+      console.log(`✅ Quick Battle leaderboard loaded from table (${tableData.length} entries)`);
+      return mapQuickBattleLeaderboardData(tableData);
+    }
+
+    // 2) Try the view
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
       .select('*')
