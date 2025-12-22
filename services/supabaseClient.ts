@@ -6,6 +6,7 @@ import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleSt
 // Supabase credentials must be provided via environment variables.
 // See .env.example for required configuration.
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// Support both VITE_SUPABASE_ANON_KEY (preferred) and VITE_SUPABASE_KEY (legacy) for backward compatibility
 const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_SUPABASE_KEY;
