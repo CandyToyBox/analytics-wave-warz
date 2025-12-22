@@ -111,7 +111,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
 export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
   try {
-    // Try the view first
+    // Try the public view
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
       .select('*')
