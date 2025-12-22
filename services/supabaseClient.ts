@@ -3,30 +3,18 @@ import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleSt
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
-// Replace defaults with your official Project URL and Anon Key when ready.
-// The code will prefer environment variables if they exist.
-const hasViteEnv = (meta: unknown): meta is { env: Record<string, string | undefined> } => {
-  if (typeof meta !== 'object' || meta === null || !('env' in meta)) return false;
-  const { env } = meta as { env?: unknown };
-  return env !== null && typeof env === 'object';
-};
-
-const importMetaSafe = typeof import.meta !== 'undefined' ? import.meta : undefined;
-const viteEnv = hasViteEnv(importMetaSafe) ? importMetaSafe.env : undefined;
-
-const getEnv = (key: string): string | undefined => {
-  const fromVite = viteEnv?.[key];
-  if (fromVite !== undefined) return fromVite;
-  if (typeof process !== 'undefined' && process.env) return process.env[key];
-};
-
-const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
+// Supabase credentials must be provided via environment variables.
+// See .env.example for required configuration.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY =
-  getEnv('VITE_SUPABASE_ANON_KEY') ||
-  getEnv('VITE_SUPABASE_KEY');
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error('Missing Supabase configuration (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)');
+  console.error('❌ Missing required environment variables:');
+  console.error('VITE_SUPABASE_URL:', SUPABASE_URL ? '✅' : '❌');
+  console.error('VITE_SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? '✅' : '❌');
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY/VITE_SUPABASE_KEY. Please configure these in your .env file.');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
