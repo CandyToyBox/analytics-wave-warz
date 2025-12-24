@@ -16,6 +16,6 @@ module.exports = {
   ignorePatterns: ['dist', 'node_modules'],
   rules: {
     'no-undef': 'off',
-    'no-unused-vars': 'off',
+    '@typescript-eslint/no-unused-vars': 'off',
   },
 };
