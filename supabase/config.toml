@@ -1,0 +1,14 @@
+[functions.leaderboard-refresh]
+verify_jwt = false
+
+[functions.refresh-quick-battles-leaderboard]
+verify_jwt = false
+
+[functions.quick-battles-sync]
+verify_jwt = false
+
+[functions.update-quick-battle]
+verify_jwt = false
+
+[functions.update-quick-battle-refresh]
+verify_jwt = false
