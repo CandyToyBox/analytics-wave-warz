@@ -3,27 +3,48 @@
 // ============================================================================
 // This edge function redirects all requests to the new battles-webhook endpoint
 // URL: https://gshwqoplsxgqbdkssoit.supabase.co/functions/v1/battles-webhook
+// Protected with HMAC-SHA256 signature verification
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { verifyHmac } from '../shared/hmac.ts';
 
 const BATTLES_WEBHOOK_URL = 'https://gshwqoplsxgqbdkssoit.supabase.co/functions/v1/battles-webhook';
+const HMAC_SECRET = Deno.env.get('HMAC_SECRET') || '';
 
-serve(async (req) => {
+if (!HMAC_SECRET) {
+  console.warn('⚠️  HMAC_SECRET is not set - HMAC verification will fail');
+}
+
+Deno.serve(async (req: Request) => {
+  // HMAC verification
+  const { ok, body, error } = await verifyHmac(req, HMAC_SECRET);
+  if (!ok) {
+    console.error('❌ HMAC verification failed:', error);
+    return new Response(JSON.stringify({ error }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     console.log('🔄 Redirecting leaderboard-refresh request to battles-webhook');
 
     // Forward the request to the battles-webhook endpoint
+    // Re-create headers without the HMAC headers
+    const forwardHeaders = new Headers(req.headers);
+    forwardHeaders.delete('x-signature');
+    forwardHeaders.delete('x-timestamp');
+
     const response = await fetch(BATTLES_WEBHOOK_URL, {
       method: req.method,
-      headers: req.headers,
-      body: req.method !== 'GET' && req.method !== 'HEAD' ? await req.text() : undefined,
+      headers: forwardHeaders,
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? body : undefined,
     });
 
     // Get the response body
-    const body = await response.text();
+    const responseBody = await response.text();
 
     // Return the response from battles-webhook
-    return new Response(body, {
+    return new Response(responseBody, {
       status: response.status,
       headers: response.headers,
     });
