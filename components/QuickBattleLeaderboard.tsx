@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { BattleSummary, QuickBattleLeaderboardEntry } from '../types';
-import { useQuickBattleLeaderboard } from '../hooks/useBattleData';
+import { useQuickBattleLeaderboard, useRefreshLeaderboards } from '../hooks/useBattleData';
 import { formatSol, formatUsd } from '../utils';
-import { Loader2, Search, Trophy, Zap, ListOrdered } from 'lucide-react';
+import { Loader2, Search, Trophy, Zap, ListOrdered, RefreshCw } from 'lucide-react';
 
 interface Props {
   battles: BattleSummary[];
@@ -91,8 +91,20 @@ const DatabaseRow: React.FC<{
 
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
   const [search, setSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: quickEntries = [], isFetching } = useQuickBattleLeaderboard();
+  const { refreshQuickBattles } = useRefreshLeaderboards();
   const isDatabaseMode = quickEntries.length > 0;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshQuickBattles();
+    } finally {
+      // Keep spinning for a moment to ensure data is fetched
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   const mapFallback = useMemo(() => {
     return () => {
@@ -167,15 +179,29 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           </div>
         </div>
 
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-2.5 text-ui-gray w-4 h-4" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by track, handle, or queue ID..."
-            className="w-full bg-navy-800 border border-navy-700 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-wave-blue transition-all placeholder:text-ui-gray"
-            type="text"
-          />
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-80">
+            <Search className="absolute left-3 top-2.5 text-ui-gray w-4 h-4" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by track, handle, or queue ID..."
+              className="w-full bg-navy-800 border border-navy-700 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-wave-blue transition-all placeholder:text-ui-gray"
+              type="text"
+            />
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing || isFetching}
+            className="flex items-center gap-2 px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg text-sm text-white hover:bg-navy-700 hover:border-wave-blue transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh leaderboard data"
+          >
+            <RefreshCw
+              size={16}
+              className={`text-wave-blue ${isRefreshing || isFetching ? 'animate-spin' : ''}`}
+            />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
       </div>
 
