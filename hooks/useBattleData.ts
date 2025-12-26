@@ -161,6 +161,37 @@ export function useQuickBattleLeaderboard() {
   return useQuery<QuickBattleLeaderboardEntry[]>({
     queryKey: ['leaderboard', 'quickBattles'],
     queryFn: async () => (await fetchQuickBattleLeaderboardFromDB()) ?? [],
-    staleTime: 60000,
+    staleTime: 15000, // 15 seconds for testing - increase to 60000 (60s) for production
   });
+}
+
+/**
+ * Hook to refresh all leaderboard data by invalidating React Query caches
+ * This forces refetch of fresh data from the database
+ */
+export function useRefreshLeaderboards() {
+  const queryClient = useQueryClient();
+
+  return {
+    refreshQuickBattles: async () => {
+      console.log('🔄 Invalidating quick battles leaderboard cache...');
+      await queryClient.invalidateQueries({ queryKey: ['leaderboard', 'quickBattles'] });
+      console.log('✅ Quick battles leaderboard cache invalidated');
+    },
+    refreshArtists: async () => {
+      console.log('🔄 Invalidating artist leaderboard cache...');
+      await queryClient.invalidateQueries({ queryKey: ['leaderboard', 'artists'] });
+      console.log('✅ Artist leaderboard cache invalidated');
+    },
+    refreshTraders: async () => {
+      console.log('🔄 Invalidating trader leaderboard cache...');
+      await queryClient.invalidateQueries({ queryKey: ['leaderboard', 'traders'] });
+      console.log('✅ Trader leaderboard cache invalidated');
+    },
+    refreshAll: async () => {
+      console.log('🔄 Invalidating all leaderboard caches...');
+      await queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+      console.log('✅ All leaderboard caches invalidated');
+    },
+  };
 }

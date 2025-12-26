@@ -121,34 +121,61 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
 export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLeaderboardEntry[] | null> {
   try {
+    console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
+
     // 1) Try dedicated leaderboard table (preferred when populated)
     const { data: tableData, error: tableError } = await supabase
       .from('quick_battle_leaderboard')
-      .select('*')
-      .eq('is_test_artist', false)
+      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, peak_pool_size, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at, is_test_artist')
+      .neq('is_test_artist', true)
       .order('total_volume_generated', { ascending: false })
+      .order('wins', { ascending: false })
+      .order('last_battle_date', { ascending: false })
       .limit(200);
 
+    if (tableError) {
+      console.warn('⚠️ [Quick Battles] Table query error:', tableError);
+    }
+
     if (!tableError && tableData && tableData.length > 0) {
-      console.log(`✅ Quick Battle leaderboard loaded from table (${tableData.length} entries)`);
-      return mapQuickBattleLeaderboardData(tableData);
+      console.log(`✅ [Quick Battles] Loaded ${tableData.length} entries from table`);
+      console.log('📊 [Quick Battles] Sample entry:', tableData[0]);
+      console.log('🔢 [Quick Battles] Top 3 volumes:',
+        tableData.slice(0, 3).map(e => ({
+          track: e.track_name,
+          volume: e.total_volume_generated,
+          wins: e.wins,
+          battles: e.battles_participated
+        }))
+      );
+      const mapped = mapQuickBattleLeaderboardData(tableData);
+      console.log('✅ [Quick Battles] Mapped data structure verified');
+      return mapped;
     }
 
     // 2) Try the view
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
-      .select('*')
-      .order('updated_at', { ascending: false })
+      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, peak_pool_size, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at, is_test_artist')
+      .neq('is_test_artist', true)
+      .order('total_volume_generated', { ascending: false })
+      .order('wins', { ascending: false })
+      .order('last_battle_date', { ascending: false })
       .limit(200);
+
+    if (viewError) {
+      console.warn('⚠️ [Quick Battles] View query error:', viewError);
+    }
 
     // If view works and has data, use it (already aggregated)
     if (!viewError && viewData && viewData.length > 0) {
-      console.log(`✅ Quick Battle leaderboard loaded from view (${viewData.length} entries)`);
+      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from view (fallback)`);
+      console.log('📊 [Quick Battles] Sample view entry:', viewData[0]);
       return mapQuickBattleLeaderboardData(viewData);
     }
 
     // Fallback: Query battles table directly for Quick Battles and aggregate by song
-    console.warn("⚠️ View failed or empty, falling back to battles table for Quick Battles");
+    console.warn("⚠️ [Quick Battles] Table and view failed/empty, falling back to battles table");
     const { data: battlesData, error: battlesError } = await supabase
       .from('battles')
       .select(`
@@ -175,19 +202,20 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       .order('created_at', { ascending: false });
 
     if (battlesError || !battlesData || battlesData.length === 0) {
-      console.warn("Failed to fetch Quick Battles from battles table", battlesError);
+      console.error("❌ [Quick Battles] Failed to fetch from battles table:", battlesError);
       return null;
     }
 
-    console.log(`✅ Quick Battle data loaded from battles table (${battlesData.length} battles)`);
-    
+    console.log(`✅ [Quick Battles] Loaded ${battlesData.length} battles from battles table (final fallback)`);
+
     // Aggregate by song (track name)
     const aggregatedData = aggregateQuickBattlesBySong(battlesData);
-    console.log(`✅ Aggregated into ${aggregatedData.length} unique songs`);
-    
+    console.log(`✅ [Quick Battles] Aggregated into ${aggregatedData.length} unique songs`);
+    console.log('📊 [Quick Battles] Sample aggregated entry:', aggregatedData[0]);
+
     return mapQuickBattleLeaderboardData(aggregatedData);
   } catch (e) {
-    console.warn("Failed to fetch quick battle leaderboard", e);
+    console.error("❌ [Quick Battles] Unexpected error fetching leaderboard:", e);
     return null;
   }
 }
