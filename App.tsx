@@ -460,7 +460,14 @@ export default function App() {
 
             <section className="relative overflow-hidden rounded-3xl border border-navy-800 bg-navy-800/50 p-8 md:p-12">
               <div className="absolute inset-0 z-0">
-                <img src={battle.imageUrl} alt="Battle Background" className="w-full h-full object-cover opacity-20 blur-sm" />
+                <img
+                  src={battle.imageUrl}
+                  alt="Battle Background"
+                  className="w-full h-full object-cover opacity-20 blur-sm"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
                 <div className="absolute inset-0 bg-gradient-to-b from-navy-900/80 to-navy-950"></div>
               </div>
 
@@ -470,9 +477,21 @@ export default function App() {
               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16">
                 {/* Artist A */}
                 <div className={`flex flex-col items-center text-center transition-all duration-500 ${winner === 'A' && battle.isEnded ? 'scale-110 drop-shadow-[0_0_15px_rgba(34,181,232,0.5)]' : 'opacity-80'}`}>
-                  <div className="w-24 h-24 rounded-full p-1 border-2 border-wave-blue mb-4 overflow-hidden shadow-lg shadow-wave-blue/20 bg-navy-950">
+                  <div className="w-24 h-24 rounded-full p-1 border-2 border-wave-blue mb-4 overflow-hidden shadow-lg shadow-wave-blue/20 bg-navy-950 flex items-center justify-center">
                     {battle.artistA.avatar ? (
-                      <img src={battle.artistA.avatar} alt="A" className="w-full h-full object-cover rounded-full" />
+                      <img
+                        src={battle.artistA.avatar}
+                        alt="A"
+                        className="w-full h-full object-cover rounded-full"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          const fallback = document.createElement('div');
+                          fallback.className = 'w-full h-full bg-wave-blue/20 flex items-center justify-center text-wave-blue font-bold text-2xl';
+                          fallback.textContent = 'A';
+                          img.parentElement?.appendChild(fallback);
+                        }}
+                      />
                     ) : (
                       <div className="w-full h-full bg-wave-blue/20 flex items-center justify-center text-wave-blue font-bold text-2xl">A</div>
                     )}
@@ -519,9 +538,21 @@ export default function App() {
 
                 {/* Artist B */}
                 <div className={`flex flex-col items-center text-center transition-all duration-500 ${winner === 'B' && battle.isEnded ? 'scale-110 drop-shadow-[0_0_15px_rgba(111,243,75,0.5)]' : 'opacity-80'}`}>
-                  <div className="w-24 h-24 rounded-full p-1 border-2 border-wave-green mb-4 overflow-hidden shadow-lg shadow-wave-green/20 bg-navy-950">
+                  <div className="w-24 h-24 rounded-full p-1 border-2 border-wave-green mb-4 overflow-hidden shadow-lg shadow-wave-green/20 bg-navy-950 flex items-center justify-center">
                     {battle.artistB.avatar ? (
-                      <img src={battle.artistB.avatar} alt="B" className="w-full h-full object-cover rounded-full" />
+                      <img
+                        src={battle.artistB.avatar}
+                        alt="B"
+                        className="w-full h-full object-cover rounded-full"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          const fallback = document.createElement('div');
+                          fallback.className = 'w-full h-full bg-wave-green/20 flex items-center justify-center text-wave-green font-bold text-2xl';
+                          fallback.textContent = 'B';
+                          img.parentElement?.appendChild(fallback);
+                        }}
+                      />
                     ) : (
                       <div className="w-full h-full bg-wave-green/20 flex items-center justify-center text-wave-green font-bold text-2xl">B</div>
                     )}

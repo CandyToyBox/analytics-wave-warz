@@ -43,6 +43,14 @@ const DatabaseRow: React.FC<{
                 src={artworkUrl}
                 alt={entry.trackName || 'Track artwork'}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  img.style.display = 'none';
+                  const fallback = document.createElement('div');
+                  fallback.className = 'text-wave-blue text-lg';
+                  fallback.textContent = '🎵';
+                  img.parentElement?.appendChild(fallback);
+                }}
               />
             ) : (
               <div className="text-wave-blue text-lg">🎵</div>
@@ -251,9 +259,21 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
                       <td className="p-4">
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-blue/10 border border-navy-700">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-blue/10 border border-navy-700 flex items-center justify-center">
                               {entry.artist1ProfilePic ? (
-                                <img src={entry.artist1ProfilePic} alt={entry.artist1Handle} className="w-full h-full object-cover" />
+                                <img
+                                  src={entry.artist1ProfilePic}
+                                  alt={entry.artist1Handle}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const img = e.target as HTMLImageElement;
+                                    img.style.display = 'none';
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold';
+                                    fallback.textContent = (entry.artist1Handle || 'A').slice(0, 2).toUpperCase();
+                                    img.parentElement?.appendChild(fallback);
+                                  }}
+                                />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold">
                                   {(entry.artist1Handle || 'A').slice(0, 2).toUpperCase()}
@@ -268,9 +288,21 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-green/10 border border-navy-700">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-green/10 border border-navy-700 flex items-center justify-center">
                               {entry.artist2ProfilePic ? (
-                                <img src={entry.artist2ProfilePic} alt={entry.artist2Handle} className="w-full h-full object-cover" />
+                                <img
+                                  src={entry.artist2ProfilePic}
+                                  alt={entry.artist2Handle}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const img = e.target as HTMLImageElement;
+                                    img.style.display = 'none';
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'w-full h-full flex items-center justify-center text-xs text-wave-green font-bold';
+                                    fallback.textContent = (entry.artist2Handle || 'B').slice(0, 2).toUpperCase();
+                                    img.parentElement?.appendChild(fallback);
+                                  }}
+                                />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-xs text-wave-green font-bold">
                                   {(entry.artist2Handle || 'B').slice(0, 2).toUpperCase()}

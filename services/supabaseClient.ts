@@ -148,9 +148,23 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
           battles: e.battles_participated
         }))
       );
-      const mapped = mapQuickBattleLeaderboardData(tableData);
-      console.log('✅ [Quick Battles] Mapped data structure verified');
-      return mapped;
+
+      // Check if data is meaningful (has actual stats, not all zeros)
+      const hasRealData = tableData.some(e =>
+        (e.total_volume_generated && e.total_volume_generated > 0) ||
+        (e.wins && e.wins > 0) ||
+        (e.total_trades && e.total_trades > 0) ||
+        (e.battles_participated && e.battles_participated > 0)
+      );
+
+      if (!hasRealData) {
+        console.warn('⚠️ [Quick Battles] Table has entries but all zeros - falling back to battles table');
+        // Fall through to view/battles table query
+      } else {
+        const mapped = mapQuickBattleLeaderboardData(tableData);
+        console.log('✅ [Quick Battles] Mapped data structure verified');
+        return mapped;
+      }
     }
 
     // 2) Try the view
@@ -464,7 +478,10 @@ export async function updateBattleDynamicStats(state: BattleState) {
             isQuickBattle: state.isQuickBattle
         });
 
-        const { error } = await supabase
+        // Note: Frontend can only UPDATE existing battles due to RLS policies
+        // The battles table requires backend/service_role auth to INSERT new rows
+        // This is a security feature to prevent unauthorized battle creation
+        const { data, error } = await supabase
             .from('battles')
             .update({
                 artist1_pool: state.artistASolBalance,
@@ -476,12 +493,17 @@ export async function updateBattleDynamicStats(state: BattleState) {
                 last_scanned_at: new Date().toISOString(),
                 recent_trades_cache: state.recentTrades
             })
-            .eq('battle_id', state.battleId);
+            .eq('battle_id', state.battleId)
+            .select();
 
         if (error) {
-            console.warn(`❌ Failed to update battle cache for ${state.battleId}:`, error);
+            console.warn(`⚠️ Failed to update battle stats for ${state.battleId}:`, error.message);
+            console.warn(`💡 Tip: Battle might not exist in database yet. Backend needs to create it first.`);
+        } else if (data && data.length === 0) {
+            console.warn(`⚠️ No rows updated for battle ${state.battleId} - battle not found in database`);
+            console.warn(`💡 This battle needs to be inserted by the backend first`);
         } else {
-            console.log(`✅ Battle stats saved successfully for ${state.battleId}`);
+            console.log(`✅ Battle stats saved successfully for ${state.battleId} (${data?.length || 0} rows updated)`);
         }
     } catch (e) {
         console.error(`❌ Supabase update error for ${state.battleId}:`, e);
