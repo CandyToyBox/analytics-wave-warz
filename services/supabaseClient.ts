@@ -224,6 +224,8 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         last_scanned_at
       `)
       .eq('is_quick_battle', true)
+      .not('artist1_music_link', 'is', null)
+      .not('artist2_music_link', 'is', null)
       .order('created_at', { ascending: false });
 
     if (battlesError || !battlesData || battlesData.length === 0) {
@@ -250,6 +252,22 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
   const songMap = new Map<string, any>();
 
   for (const battle of battles) {
+    // Skip battles without both music links (not true Quick Battles - song vs song)
+    if (!battle.artist1_music_link || !battle.artist2_music_link) {
+      console.log('⚠️ Skipping battle without both music links:', battle.battle_id);
+      continue;
+    }
+
+    // Only process battles with Audius links (true Quick Battles)
+    const hasAudiusLinks =
+      battle.artist1_music_link?.includes('audius.co') &&
+      battle.artist2_music_link?.includes('audius.co');
+
+    if (!hasAudiusLinks) {
+      console.log('⚠️ Skipping battle without Audius links:', battle.battle_id);
+      continue;
+    }
+
     // Determine which track this battle represents
     // For song vs song, we need to aggregate both artist1 and artist2 tracks separately
     const extractTrackInfo = (artistName: string | null, musicLink: string | null) => {
