@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Authentication check
   const authToken = req.headers.authorization;
-  const adminSecret = process.env.ADMIN_SECRET || process.env.VITE_ADMIN_SECRET;
+  const adminSecret = process.env.ADMIN_SECRET;
   
   if (!adminSecret) {
     return res.status(500).json({ 
@@ -51,7 +51,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  if (authToken !== `Bearer ${adminSecret}`) {
+  // Use constant-time comparison to prevent timing attacks
+  const expectedToken = `Bearer ${adminSecret}`;
+  if (!authToken || authToken.length !== expectedToken.length) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  // Constant-time comparison
+  let isValid = true;
+  for (let i = 0; i < expectedToken.length; i++) {
+    if (authToken[i] !== expectedToken[i]) {
+      isValid = false;
+    }
+  }
+  
+  if (!isValid) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -165,10 +179,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('❌ Scan endpoint error:', error);
+    
+    // Only expose stack trace in development
+    const isDev = process.env.NODE_ENV === 'development';
+    
     return res.status(500).json({ 
       error: 'Internal Server Error',
       message: error.message,
-      details: error.stack
+      ...(isDev && { details: error.stack })
     });
   }
 }

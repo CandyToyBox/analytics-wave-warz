@@ -73,11 +73,14 @@ openssl rand -hex 32
 ### 2. Test the Endpoint
 
 ```bash
-# Test locally
+# Test locally (Vite dev server proxies API requests)
 npm run dev
 # Then in another terminal:
 curl -X POST "http://localhost:5173/api/admin/scan-battles?limit=5" \
   -H "Authorization: Bearer your-admin-secret-here"
+
+# Note: Vite dev server (port 5173) proxies /api/* requests to the backend
+# In production, API endpoints are handled by Vercel serverless functions
 ```
 
 ## Use Cases
