@@ -148,9 +148,23 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
           battles: e.battles_participated
         }))
       );
-      const mapped = mapQuickBattleLeaderboardData(tableData);
-      console.log('✅ [Quick Battles] Mapped data structure verified');
-      return mapped;
+
+      // Check if data is meaningful (has actual stats, not all zeros)
+      const hasRealData = tableData.some(e =>
+        (e.total_volume_generated && e.total_volume_generated > 0) ||
+        (e.wins && e.wins > 0) ||
+        (e.total_trades && e.total_trades > 0) ||
+        (e.battles_participated && e.battles_participated > 0)
+      );
+
+      if (!hasRealData) {
+        console.warn('⚠️ [Quick Battles] Table has entries but all zeros - falling back to battles table');
+        // Fall through to view/battles table query
+      } else {
+        const mapped = mapQuickBattleLeaderboardData(tableData);
+        console.log('✅ [Quick Battles] Mapped data structure verified');
+        return mapped;
+      }
     }
 
     // 2) Try the view
@@ -464,9 +478,12 @@ export async function updateBattleDynamicStats(state: BattleState) {
             isQuickBattle: state.isQuickBattle
         });
 
-        const { error } = await supabase
+        // Use UPSERT to handle cases where the battle might not exist yet
+        // This ensures data is saved even if the battle wasn't initially inserted
+        const { data, error } = await supabase
             .from('battles')
-            .update({
+            .upsert({
+                battle_id: state.battleId,
                 artist1_pool: state.artistASolBalance,
                 artist2_pool: state.artistBSolBalance,
                 total_volume_a: state.totalVolumeA,
@@ -474,17 +491,37 @@ export async function updateBattleDynamicStats(state: BattleState) {
                 trade_count: state.tradeCount,
                 unique_traders: state.uniqueTraders,
                 last_scanned_at: new Date().toISOString(),
-                recent_trades_cache: state.recentTrades
+                recent_trades_cache: state.recentTrades,
+                // Include minimal required fields for insert case
+                created_at: state.createdAt || new Date().toISOString(),
+                status: state.status || 'active',
+                artist1_name: state.artistA?.name || 'Unknown',
+                artist2_name: state.artistB?.name || 'Unknown',
+                artist1_music_link: state.artistA?.musicLink,
+                artist1_wallet: state.artistA?.wallet,
+                artist1_twitter: state.artistA?.twitter,
+                artist2_music_link: state.artistB?.musicLink,
+                artist2_wallet: state.artistB?.wallet,
+                artist2_twitter: state.artistB?.twitter,
+                image_url: state.imageUrl,
+                battle_duration: state.battleDuration,
+                is_quick_battle: state.isQuickBattle || false,
+                quick_battle_queue_id: state.quickBattleQueueId,
+                winner_decided: state.winnerDecided || false,
+                winner_artist_a: state.winnerArtistA
+            }, {
+                onConflict: 'battle_id',
+                ignoreDuplicates: false
             })
-            .eq('battle_id', state.battleId);
+            .select();
 
         if (error) {
-            console.warn(`❌ Failed to update battle cache for ${state.battleId}:`, error);
+            console.error(`❌ Failed to upsert battle stats for ${state.battleId}:`, error);
         } else {
-            console.log(`✅ Battle stats saved successfully for ${state.battleId}`);
+            console.log(`✅ Battle stats saved successfully for ${state.battleId} (${data?.length || 0} rows affected)`);
         }
     } catch (e) {
-        console.error(`❌ Supabase update error for ${state.battleId}:`, e);
+        console.error(`❌ Supabase upsert error for ${state.battleId}:`, e);
     }
 }
 
