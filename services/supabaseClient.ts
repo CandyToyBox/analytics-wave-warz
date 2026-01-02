@@ -44,7 +44,8 @@ export const BATTLE_COLUMNS = `
   is_community_battle
 `;
 
-const BATTLE_FETCH_LIMIT = 200;
+// Removed hardcoded 200 battle limit - fetch ALL battles
+// Historical battles are static (webhook sends metadata, blockchain scan adds volumes)
 
 export function normalizeBattleId(value: unknown): string | null {
   return value == null ? null : value.toString();
@@ -60,8 +61,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
     const { data, error } = await supabase
       .from('v_battles_public')
       .select(BATTLE_COLUMNS)
-      .order('created_at', { ascending: false })
-      .limit(BATTLE_FETCH_LIMIT);
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.warn("Supabase fetch warning (Official DB might be unreachable):", JSON.stringify(error, null, 2));
@@ -128,8 +128,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       .from('v_quick_battle_leaderboard_public')
       .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at, image_url')
       .order('total_volume_generated', { ascending: false })
-      .order('wins', { ascending: false })
-      .limit(200);
+      .order('wins', { ascending: false });
 
     if (viewError) {
       console.warn('⚠️ [Quick Battles] View query error:', viewError);
@@ -173,8 +172,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       .neq('is_test_artist', true)
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false })
-      .order('last_battle_date', { ascending: false })
-      .limit(200);
+      .order('last_battle_date', { ascending: false });
 
     if (tableError) {
       console.warn('⚠️ [Quick Battles] Table query error:', tableError);
@@ -624,8 +622,7 @@ export async function fetchArtistLeaderboardFromDB(): Promise<ArtistLeaderboardS
     const { data, error } = await supabase
       .from('v_artist_leaderboard_public')
       .select('*')
-      .order('rank', { ascending: true })
-      .limit(200);
+      .order('rank', { ascending: true });
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any) => ({
@@ -661,8 +658,7 @@ export async function fetchTraderLeaderboardFromDB(): Promise<TraderLeaderboardE
     const { data, error } = await supabase
       .from('v_trader_leaderboard_public')
       .select('*')
-      .order('rank', { ascending: true })
-      .limit(200);
+      .order('rank', { ascending: true });
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any) => ({

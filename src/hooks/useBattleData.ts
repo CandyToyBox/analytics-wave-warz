@@ -43,8 +43,7 @@ export function useAllBattles() {
         const { data, error } = await supabase
           .from('v_battles_public')  // ✅ This is the PUBLIC VIEW
           .select('*')
-          .order('created_at', { ascending: false })
-          .limit(200);
+          .order('created_at', { ascending: false });
 
         if (error) {
           console.error('❌ Error fetching battles:', error);
