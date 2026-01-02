@@ -77,13 +77,18 @@ export const Leaderboard: React.FC<Props> = ({ artists, totalBattles }) => {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-navy-900 overflow-hidden border border-navy-700">
-                        <img 
-                          src={artist.avatar} 
-                          alt={artist.name} 
+                      <div className="w-8 h-8 rounded-full bg-navy-900 overflow-hidden border border-navy-700 flex items-center justify-center">
+                        <img
+                          src={artist.avatar}
+                          alt={artist.name}
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/100?text=A';
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                            const fallback = document.createElement('div');
+                            fallback.className = 'w-full h-full flex items-center justify-center text-wave-blue text-sm font-bold';
+                            fallback.textContent = artist.name.charAt(0).toUpperCase();
+                            img.parentElement?.appendChild(fallback);
                           }}
                         />
                       </div>

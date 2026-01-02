@@ -132,9 +132,23 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
                             <div className="font-mono text-ui-gray w-8 text-center font-bold">#{idx + 4}</div>
 
                             <div className="flex items-center gap-3 flex-1 w-full sm:w-auto">
-                                <div className="w-10 h-10 rounded-full bg-navy-900 overflow-hidden shrink-0 border border-navy-700">
+                                <div className="w-10 h-10 rounded-full bg-navy-900 overflow-hidden shrink-0 border border-navy-700 flex items-center justify-center">
                                     {artist.imageUrl ? (
-                                        <img src={artist.imageUrl} className="w-full h-full object-cover" alt={artist.artistName} />
+                                        <img
+                                          src={artist.imageUrl}
+                                          className="w-full h-full object-cover"
+                                          alt={artist.artistName}
+                                          onError={(e) => {
+                                            const img = e.target as HTMLImageElement;
+                                            img.style.display = 'none';
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'w-full h-full flex items-center justify-center text-ui-gray';
+                                            const icon = document.createElement('div');
+                                            icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
+                                            fallback.appendChild(icon.firstChild!);
+                                            img.parentElement?.appendChild(fallback);
+                                          }}
+                                        />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-ui-gray">
                                             <Music size={16} />
@@ -184,9 +198,23 @@ const ArtistCard: React.FC<{ artist: ArtistLeaderboardStats, rank: number, isWin
 
             <div className="p-6 flex flex-col items-center text-center">
                 <div className={`relative mb-4 ${isWinner ? 'w-24 h-24' : 'w-20 h-20'}`}>
-                    <div className={`w-full h-full rounded-full overflow-hidden border-4 ${isWinner ? 'border-yellow-500' : rank === 2 ? 'border-slate-300' : 'border-orange-700'}`}>
+                    <div className={`w-full h-full rounded-full overflow-hidden border-4 ${isWinner ? 'border-yellow-500' : rank === 2 ? 'border-slate-300' : 'border-orange-700'} flex items-center justify-center`}>
                         {artist.imageUrl ? (
-                            <img src={artist.imageUrl} alt={artist.artistName} className="w-full h-full object-cover" />
+                            <img
+                              src={artist.imageUrl}
+                              alt={artist.artistName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const img = e.target as HTMLImageElement;
+                                img.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = 'w-full h-full bg-navy-900 flex items-center justify-center text-ui-gray';
+                                const icon = document.createElement('div');
+                                icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
+                                fallback.appendChild(icon.firstChild!);
+                                img.parentElement?.appendChild(fallback);
+                              }}
+                            />
                         ) : (
                             <div className="w-full h-full bg-navy-900 flex items-center justify-center text-ui-gray"><Music /></div>
                         )}
