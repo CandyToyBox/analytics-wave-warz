@@ -11,14 +11,14 @@ const BATTLES_WEBHOOK_URL = 'https://gshwqoplsxgqbdkssoit.supabase.co/functions/
 const HMAC_SECRET = Deno.env.get('HMAC_SECRET') || '';
 
 if (!HMAC_SECRET) {
-  console.warn('⚠️  HMAC_SECRET is not set - HMAC verification will fail');
+  console.warn('⚠️  HMAC_SECRET is not set - optional auth mode enabled');
 }
 
 Deno.serve(async (req: Request) => {
-  // HMAC verification
+  // HMAC verification (optional - allows requests without HMAC headers)
   const { ok, body, error } = await verifyHmac(req, HMAC_SECRET);
   if (!ok) {
-    console.error('❌ HMAC verification failed:', error);
+    console.error('❌ HMAC verification failed (signature mismatch):', error);
     return new Response(JSON.stringify({ error }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
