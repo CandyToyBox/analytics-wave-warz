@@ -478,12 +478,12 @@ export async function updateBattleDynamicStats(state: BattleState) {
             isQuickBattle: state.isQuickBattle
         });
 
-        // Use UPSERT to handle cases where the battle might not exist yet
-        // This ensures data is saved even if the battle wasn't initially inserted
+        // Note: Frontend can only UPDATE existing battles due to RLS policies
+        // The battles table requires backend/service_role auth to INSERT new rows
+        // This is a security feature to prevent unauthorized battle creation
         const { data, error } = await supabase
             .from('battles')
-            .upsert({
-                battle_id: state.battleId,
+            .update({
                 artist1_pool: state.artistASolBalance,
                 artist2_pool: state.artistBSolBalance,
                 total_volume_a: state.totalVolumeA,
@@ -491,37 +491,22 @@ export async function updateBattleDynamicStats(state: BattleState) {
                 trade_count: state.tradeCount,
                 unique_traders: state.uniqueTraders,
                 last_scanned_at: new Date().toISOString(),
-                recent_trades_cache: state.recentTrades,
-                // Include minimal required fields for insert case
-                created_at: state.createdAt || new Date().toISOString(),
-                status: state.status || 'active',
-                artist1_name: state.artistA?.name || 'Unknown',
-                artist2_name: state.artistB?.name || 'Unknown',
-                artist1_music_link: state.artistA?.musicLink,
-                artist1_wallet: state.artistA?.wallet,
-                artist1_twitter: state.artistA?.twitter,
-                artist2_music_link: state.artistB?.musicLink,
-                artist2_wallet: state.artistB?.wallet,
-                artist2_twitter: state.artistB?.twitter,
-                image_url: state.imageUrl,
-                battle_duration: state.battleDuration,
-                is_quick_battle: state.isQuickBattle || false,
-                quick_battle_queue_id: state.quickBattleQueueId,
-                winner_decided: state.winnerDecided || false,
-                winner_artist_a: state.winnerArtistA
-            }, {
-                onConflict: 'battle_id',
-                ignoreDuplicates: false
+                recent_trades_cache: state.recentTrades
             })
+            .eq('battle_id', state.battleId)
             .select();
 
         if (error) {
-            console.error(`❌ Failed to upsert battle stats for ${state.battleId}:`, error);
+            console.warn(`⚠️ Failed to update battle stats for ${state.battleId}:`, error.message);
+            console.warn(`💡 Tip: Battle might not exist in database yet. Backend needs to create it first.`);
+        } else if (data && data.length === 0) {
+            console.warn(`⚠️ No rows updated for battle ${state.battleId} - battle not found in database`);
+            console.warn(`💡 This battle needs to be inserted by the backend first`);
         } else {
-            console.log(`✅ Battle stats saved successfully for ${state.battleId} (${data?.length || 0} rows affected)`);
+            console.log(`✅ Battle stats saved successfully for ${state.battleId} (${data?.length || 0} rows updated)`);
         }
     } catch (e) {
-        console.error(`❌ Supabase upsert error for ${state.battleId}:`, e);
+        console.error(`❌ Supabase update error for ${state.battleId}:`, e);
     }
 }
 
