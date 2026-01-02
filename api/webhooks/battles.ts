@@ -76,11 +76,15 @@ export async function POST(request: Request) {
 async function handleBattleInsert(payload: any) {
   const battleData = payload.record;
   const battleId = battleData.battle_id;
-  
+
   console.log(`✨ NEW BATTLE INSERT: ${battleId}`);
   console.log(`Artists: ${battleData.artist1_name} vs ${battleData.artist2_name}`);
   console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
-  
+  console.log(`Quick Battle: ${battleData.is_quick_battle ? 'YES' : 'NO'}`);
+  if (battleData.is_quick_battle) {
+    console.log(`  Queue ID: ${battleData.quick_battle_queue_id || 'N/A'}`);
+  }
+
   try {
     // ✅ SUPABASE V2: No "returning" option, just .insert()
     const { error } = await supabase
@@ -107,7 +111,12 @@ async function handleBattleInsert(payload: any) {
         artist2_twitter: battleData.artist2_twitter,
         stream_link: battleData.stream_link,
         creator_wallet: battleData.creator_wallet,
+        split_wallet_address: battleData.split_wallet_address,
         is_community_battle: battleData.is_community_battle || false,
+        community_round_id: battleData.community_round_id,
+        is_quick_battle: battleData.is_quick_battle || false,
+        quick_battle_queue_id: battleData.quick_battle_queue_id,
+        is_test_battle: battleData.is_test_battle || false,
         created_at: battleData.created_at,
       });
     // ✅ No .select() = minimal payload (fastest)
@@ -116,8 +125,12 @@ async function handleBattleInsert(payload: any) {
       console.error('❌ INSERT failed:', error);
       return { success: false, error };
     }
-    
-    console.log(`✅ Battle ${battleId} inserted successfully`);
+
+    if (battleData.is_quick_battle) {
+      console.log(`✅ QUICK BATTLE ${battleId} inserted successfully with is_quick_battle=true`);
+    } else {
+      console.log(`✅ Battle ${battleId} inserted successfully`);
+    }
     
     // Refresh materialized view to include new battle
     try {
