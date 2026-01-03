@@ -5,6 +5,20 @@ import { supabaseAdmin } from './utils/supabase-admin';
 
 export async function POST(request: Request) {
   try {
+    // 🔒 SECURITY: Verify API key to prevent unauthorized access
+    const apiKey = request.headers.get('x-api-key');
+    const expectedKey = process.env.BATTLE_UPDATE_API_KEY;
+
+    if (!expectedKey) {
+      console.error('❌ [API] BATTLE_UPDATE_API_KEY not configured');
+      return Response.json({ success: false, error: 'Server configuration error' }, { status: 500 });
+    }
+
+    if (!apiKey || apiKey !== expectedKey) {
+      console.warn('⚠️ [API] Unauthorized battle update attempt');
+      return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { battleId, volumeA, volumeB, tradeCount, uniqueTraders } = await request.json();
 
     if (!battleId) {

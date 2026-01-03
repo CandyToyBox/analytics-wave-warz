@@ -522,9 +522,19 @@ export async function updateBattleDynamicStats(state: BattleState) {
         });
 
         // Use backend API with service_role access (bypasses RLS)
+        const apiKey = import.meta.env.VITE_BATTLE_UPDATE_API_KEY;
+
+        if (!apiKey) {
+            console.error('❌ VITE_BATTLE_UPDATE_API_KEY not configured');
+            return;
+        }
+
         const response = await fetch('/api/update-battle-volumes', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey  // 🔒 API key for authentication
+            },
             body: JSON.stringify({
                 battleId,
                 volumeA: state.totalVolumeA,
