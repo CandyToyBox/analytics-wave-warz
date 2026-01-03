@@ -176,6 +176,44 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 
 ---
 
+#### 9. 🔒 SECURITY: Unauthenticated Battle Update API (P1 - CRITICAL)
+**Error:** `/api/update-battle-volumes` endpoint accepted requests without authentication
+
+**Root Cause:**
+- Endpoint uses `supabaseAdmin` (service_role) to bypass RLS
+- No authentication check before processing requests
+- Anyone could send POST requests to corrupt battle data
+- Publicly accessible endpoint with privileged access
+
+**Security Impact:**
+- ❌ Unauthenticated users could update any battle's volumes
+- ❌ Leaderboard data could be manipulated
+- ❌ Service-role access exposed without verification
+- ❌ All RLS policies bypassed
+
+**Fix:**
+- Added **API key authentication** to backend endpoint
+- Backend verifies `x-api-key` header against `BATTLE_UPDATE_API_KEY` env var
+- Frontend sends API key from `VITE_BATTLE_UPDATE_API_KEY` in request headers
+- Returns `401 Unauthorized` for invalid/missing API keys
+- Created comprehensive security documentation (`SECURITY_FIX.md`)
+
+**Files Changed:**
+- `api/update-battle-volumes.ts` - Added API key verification
+- `services/supabaseClient.ts` - Send API key in headers
+- `.env.example` - Added API key configuration
+- `SECURITY_FIX.md` - Security setup documentation
+
+**Setup Required:**
+1. Generate API key: `openssl rand -base64 32`
+2. Add `BATTLE_UPDATE_API_KEY` to Vercel environment variables
+3. Add `VITE_BATTLE_UPDATE_API_KEY` to Vercel environment variables
+4. Redeploy application
+
+**Impact:** ✅ **CRITICAL** - Prevents unauthorized battle data manipulation
+
+---
+
 ### 📊 Database Status (Verified via SQL)
 
 - ✅ **115 Quick Battles** in database
@@ -205,6 +243,8 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 ### 🔄 Git Commits Included
 
 ```
+e88de1c SECURITY FIX: Add authentication to battle update API (P1)
+3831541 docs: update Issue #8 with correct root cause (using wrong view)
 bb8edf8 fix: use v_quick_battle_leaderboard_public_old view to show correct Quick Battle count
 dcf5d3b docs: add Issue #8 - wrong battle count fix to PR documentation
 aadeab8 fix: disable materialized view to prevent showing all battles instead of Quick Battles only
@@ -221,7 +261,7 @@ dc91f0d fix: use battles table instead of v_battles_public view
 63c892c fix: resolve console errors in browser
 ```
 
-**Total:** 14 commits
+**Total:** 16 commits
 
 ---
 
@@ -350,7 +390,7 @@ const battleId = normalizeBattleId(state.battleId);  // Always string
 
 ## 🎉 Summary
 
-This PR resolves **8 critical issues** affecting the Quick Battle leaderboard:
+This PR resolves **9 critical issues** affecting the Quick Battle leaderboard:
 - ✅ Fixed database column errors (`image_url` doesn't exist)
 - ✅ Fixed RLS policy violations (frontend can't write to trader_leaderboard)
 - ✅ Fixed duplicate artwork display (per-track images)
@@ -358,6 +398,7 @@ This PR resolves **8 critical issues** affecting the Quick Battle leaderboard:
 - ✅ Fixed type mismatch preventing updates (battle_id string conversion)
 - ✅ Migrated from view to table for proper column access
 - ✅ Added missing Quick Battle fields (`is_quick_battle`, etc.)
-- ✅ Fixed wrong battle count (showing all 163 battles instead of 115 Quick Battles)
+- ✅ Fixed wrong battle count (showing 163 songs instead of 43)
+- 🔒 **SECURITY FIX**: Added authentication to battle update API (P1 - CRITICAL)
 
-**Result:** Clean console, working blockchain scan, accurate volume data, correct battle filtering! 🚀
+**Result:** Clean console, working blockchain scan, accurate volume data, correct battle filtering, and secure API! 🚀
