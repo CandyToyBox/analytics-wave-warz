@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { BattleSummary, QuickBattleLeaderboardEntry } from '../types';
 import { useQuickBattleLeaderboard, useRefreshLeaderboards } from '../hooks/useBattleData';
 import { formatSol, formatUsd } from '../utils';
-import { Loader2, Search, Trophy, Zap, ListOrdered, RefreshCw } from 'lucide-react';
+import { Loader2, Search, Trophy, Zap, ListOrdered, RefreshCw, Scan } from 'lucide-react';
+import { fetchBattleOnChain } from '../services/solanaService';
 
 interface Props {
   battles: BattleSummary[];
@@ -100,6 +101,8 @@ const DatabaseRow: React.FC<{
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
   const [search, setSearch] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   const { data: quickEntries = [], isFetching } = useQuickBattleLeaderboard();
   const { refreshQuickBattles } = useRefreshLeaderboards();
   const isDatabaseMode = quickEntries.length > 0;
@@ -111,6 +114,62 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     } finally {
       // Keep spinning for a moment to ensure data is fetched
       setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  const handleScanBlockchain = async () => {
+    setIsScanning(true);
+    setScanProgress({ current: 0, total: 0 });
+
+    try {
+      // Get all Quick Battles
+      const quickBattles = battles.filter(b => b.isQuickBattle);
+
+      if (quickBattles.length === 0) {
+        alert('No Quick Battles found to scan');
+        return;
+      }
+
+      setScanProgress({ current: 0, total: quickBattles.length });
+      console.log(`🔍 Starting blockchain scan for ${quickBattles.length} Quick Battles...`);
+
+      // Scan each battle in batches to avoid rate limits
+      const BATCH_SIZE = 3;
+      const DELAY = 2000; // 2 seconds between batches
+
+      for (let i = 0; i < quickBattles.length; i += BATCH_SIZE) {
+        const batch = quickBattles.slice(i, i + BATCH_SIZE);
+
+        // Process batch in parallel
+        await Promise.all(
+          batch.map(async (battle) => {
+            try {
+              console.log(`  Scanning ${battle.battleId}...`);
+              await fetchBattleOnChain(battle, true); // Force refresh to scan blockchain
+              setScanProgress(prev => ({ ...prev, current: prev.current + 1 }));
+            } catch (error) {
+              console.error(`  Failed to scan ${battle.battleId}:`, error);
+            }
+          })
+        );
+
+        // Wait before next batch
+        if (i + BATCH_SIZE < quickBattles.length) {
+          await new Promise(resolve => setTimeout(resolve, DELAY));
+        }
+      }
+
+      console.log('✅ Blockchain scan complete! Refreshing leaderboard...');
+
+      // Refresh the leaderboard to show updated data
+      await refreshQuickBattles();
+
+    } catch (error) {
+      console.error('❌ Blockchain scan failed:', error);
+      alert('Failed to scan blockchain. See console for details.');
+    } finally {
+      setIsScanning(false);
+      setScanProgress({ current: 0, total: 0 });
     }
   };
 
@@ -200,7 +259,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           </div>
           <button
             onClick={handleRefresh}
-            disabled={isRefreshing || isFetching}
+            disabled={isRefreshing || isFetching || isScanning}
             className="flex items-center gap-2 px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg text-sm text-white hover:bg-navy-700 hover:border-wave-blue transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             title="Refresh leaderboard data"
           >
@@ -209,6 +268,22 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
               className={`text-wave-blue ${isRefreshing || isFetching ? 'animate-spin' : ''}`}
             />
             <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            onClick={handleScanBlockchain}
+            disabled={isRefreshing || isFetching || isScanning}
+            className="flex items-center gap-2 px-4 py-2 bg-wave-blue/10 border border-wave-blue rounded-lg text-sm text-white hover:bg-wave-blue/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Scan blockchain to populate volumes"
+          >
+            <Scan
+              size={16}
+              className={`text-wave-blue ${isScanning ? 'animate-pulse' : ''}`}
+            />
+            <span className="hidden sm:inline">
+              {isScanning
+                ? `Scanning ${scanProgress.current}/${scanProgress.total}...`
+                : 'Scan Blockchain'}
+            </span>
           </button>
         </div>
       </div>
