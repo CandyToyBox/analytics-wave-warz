@@ -44,7 +44,8 @@ export const BATTLE_COLUMNS = `
   is_community_battle
 `;
 
-const BATTLE_FETCH_LIMIT = 200;
+// Removed hardcoded 200 battle limit - fetch ALL battles
+// Historical battles are static (webhook sends metadata, blockchain scan adds volumes)
 
 export function normalizeBattleId(value: unknown): string | null {
   return value == null ? null : value.toString();
@@ -60,8 +61,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
     const { data, error } = await supabase
       .from('v_battles_public')
       .select(BATTLE_COLUMNS)
-      .order('created_at', { ascending: false })
-      .limit(BATTLE_FETCH_LIMIT);
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.warn("Supabase fetch warning (Official DB might be unreachable):", JSON.stringify(error, null, 2));
@@ -123,25 +123,22 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
   try {
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
-    // 1) Try dedicated leaderboard table (preferred when populated)
-    const { data: tableData, error: tableError } = await supabase
-      .from('quick_battle_leaderboard')
-      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, peak_pool_size, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at, is_test_artist')
-      .neq('is_test_artist', true)
+    // 1) Try the materialized view first (most up-to-date aggregated data)
+    const { data: viewData, error: viewError } = await supabase
+      .from('v_quick_battle_leaderboard_public')
+      .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at, image_url')
       .order('total_volume_generated', { ascending: false })
-      .order('wins', { ascending: false })
-      .order('last_battle_date', { ascending: false })
-      .limit(200);
+      .order('wins', { ascending: false });
 
-    if (tableError) {
-      console.warn('⚠️ [Quick Battles] Table query error:', tableError);
+    if (viewError) {
+      console.warn('⚠️ [Quick Battles] View query error:', viewError);
     }
 
-    if (!tableError && tableData && tableData.length > 0) {
-      console.log(`✅ [Quick Battles] Loaded ${tableData.length} entries from table`);
-      console.log('📊 [Quick Battles] Sample entry:', tableData[0]);
+    if (!viewError && viewData && viewData.length > 0) {
+      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from materialized view`);
+      console.log('📊 [Quick Battles] Sample entry:', viewData[0]);
       console.log('🔢 [Quick Battles] Top 3 volumes:',
-        tableData.slice(0, 3).map(e => ({
+        viewData.slice(0, 3).map(e => ({
           track: e.track_name,
           volume: e.total_volume_generated,
           wins: e.wins,
@@ -150,7 +147,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       );
 
       // Check if data is meaningful (has actual stats, not all zeros)
-      const hasRealData = tableData.some(e =>
+      const hasRealData = viewData.some(e =>
         (e.total_volume_generated && e.total_volume_generated > 0) ||
         (e.wins && e.wins > 0) ||
         (e.total_trades && e.total_trades > 0) ||
@@ -158,34 +155,46 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       );
 
       if (!hasRealData) {
-        console.warn('⚠️ [Quick Battles] Table has entries but all zeros - falling back to battles table');
-        // Fall through to view/battles table query
+        console.warn('⚠️ [Quick Battles] View has entries but all zeros - falling back to battles table');
+        // Fall through to battles table query
       } else {
-        const mapped = mapQuickBattleLeaderboardData(tableData);
+        const mapped = mapQuickBattleLeaderboardData(viewData);
         console.log('✅ [Quick Battles] Mapped data structure verified');
+        console.log('🔍 [Quick Battles] First mapped entry:', mapped[0]);
         return mapped;
       }
     }
 
-    // 2) Try the view
-    const { data: viewData, error: viewError } = await supabase
-      .from('v_quick_battle_leaderboard_public')
+    // 2) Try dedicated leaderboard table as fallback
+    const { data: tableData, error: tableError } = await supabase
+      .from('quick_battle_leaderboard')
       .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, peak_pool_size, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at, is_test_artist')
       .neq('is_test_artist', true)
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false })
-      .order('last_battle_date', { ascending: false })
-      .limit(200);
+      .order('last_battle_date', { ascending: false });
 
-    if (viewError) {
-      console.warn('⚠️ [Quick Battles] View query error:', viewError);
+    if (tableError) {
+      console.warn('⚠️ [Quick Battles] Table query error:', tableError);
     }
 
-    // If view works and has data, use it (already aggregated)
-    if (!viewError && viewData && viewData.length > 0) {
-      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from view (fallback)`);
-      console.log('📊 [Quick Battles] Sample view entry:', viewData[0]);
-      return mapQuickBattleLeaderboardData(viewData);
+    if (!tableError && tableData && tableData.length > 0) {
+      console.log(`✅ [Quick Battles] Loaded ${tableData.length} entries from table (fallback)`);
+      console.log('📊 [Quick Battles] Sample table entry:', tableData[0]);
+
+      // Check if data is meaningful (has actual stats, not all zeros)
+      const hasRealData = tableData.some(e =>
+        (e.total_volume_generated && e.total_volume_generated > 0) ||
+        (e.wins && e.wins > 0) ||
+        (e.total_trades && e.total_trades > 0)
+      );
+
+      if (!hasRealData) {
+        console.warn('⚠️ [Quick Battles] Table has entries but all zeros - falling back to battles table');
+        // Fall through to battles table query
+      } else {
+        return mapQuickBattleLeaderboardData(tableData);
+      }
     }
 
     // Fallback: Query battles table directly for Quick Battles and aggregate by song
@@ -213,6 +222,8 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         last_scanned_at
       `)
       .eq('is_quick_battle', true)
+      .not('artist1_music_link', 'is', null)
+      .not('artist2_music_link', 'is', null)
       .order('created_at', { ascending: false });
 
     if (battlesError || !battlesData || battlesData.length === 0) {
@@ -239,6 +250,22 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
   const songMap = new Map<string, any>();
 
   for (const battle of battles) {
+    // Skip battles without both music links (not true Quick Battles - song vs song)
+    if (!battle.artist1_music_link || !battle.artist2_music_link) {
+      console.log('⚠️ Skipping battle without both music links:', battle.battle_id);
+      continue;
+    }
+
+    // Only process battles with Audius links (true Quick Battles)
+    const hasAudiusLinks =
+      battle.artist1_music_link?.includes('audius.co') &&
+      battle.artist2_music_link?.includes('audius.co');
+
+    if (!hasAudiusLinks) {
+      console.log('⚠️ Skipping battle without Audius links:', battle.battle_id);
+      continue;
+    }
+
     // Determine which track this battle represents
     // For song vs song, we need to aggregate both artist1 and artist2 tracks separately
     const extractTrackInfo = (artistName: string | null, musicLink: string | null) => {
@@ -443,9 +470,9 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
       updatedAt: row.updated_at || row.last_scanned_at || row.created_at,
       audiusHandle: row.audius_handle || extractAudiusHandle(row.artist1_music_link) || extractAudiusHandle(row.artist2_music_link),
       trackName: row.track_name ?? row.artist1_name ?? null,
-      // Backend stores track URL in audius_profile_pic for artwork; audius_profile_url is the canonical track page when present
-      audiusProfilePic: row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link ?? row.image_url,
-      audiusProfileUrl: row.audius_profile_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? null,
+      // Prefer image_url for artwork (materialized view has audius_profile_pic as track URL, not image)
+      audiusProfilePic: row.image_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link,
+      audiusProfileUrl: row.audius_profile_pic ?? row.audius_profile_url ?? row.artist1_music_link ?? null,
       battlesParticipated,
       totalTrades: toNumber(row.total_trades) ?? toNumber(row.trade_count),
       wins,
@@ -595,8 +622,7 @@ export async function fetchArtistLeaderboardFromDB(): Promise<ArtistLeaderboardS
     const { data, error } = await supabase
       .from('v_artist_leaderboard_public')
       .select('*')
-      .order('rank', { ascending: true })
-      .limit(200);
+      .order('rank', { ascending: true });
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any) => ({
@@ -632,8 +658,7 @@ export async function fetchTraderLeaderboardFromDB(): Promise<TraderLeaderboardE
     const { data, error } = await supabase
       .from('v_trader_leaderboard_public')
       .select('*')
-      .order('rank', { ascending: true })
-      .limit(200);
+      .order('rank', { ascending: true });
     if (error || !data || data.length === 0) return null;
 
     return data.map((row: any) => ({
