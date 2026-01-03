@@ -219,6 +219,8 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         winner_decided,
         winner_artist_a,
         image_url,
+        quick_battle_artist1_audius_profile_pic,
+        quick_battle_artist2_audius_profile_pic,
         last_scanned_at
       `)
       .eq('is_quick_battle', true)
@@ -268,9 +270,9 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
 
     // Determine which track this battle represents
     // For song vs song, we need to aggregate both artist1 and artist2 tracks separately
-    const extractTrackInfo = (artistName: string | null, musicLink: string | null) => {
+    const extractTrackInfo = (artistName: string | null, musicLink: string | null, profilePic: string | null) => {
       if (!artistName) return null;
-      
+
       // Extract track name from Audius URL if present
       let trackName = artistName;
       if (musicLink?.includes('audius.co')) {
@@ -284,17 +286,18 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
             .join(' ');
         }
       }
-      
+
       return {
         trackName,
         musicLink,
-        artistName
+        artistName,
+        profilePic
       };
     };
 
     // Process both tracks in the battle
-    const track1 = extractTrackInfo(battle.artist1_name, battle.artist1_music_link);
-    const track2 = extractTrackInfo(battle.artist2_name, battle.artist2_music_link);
+    const track1 = extractTrackInfo(battle.artist1_name, battle.artist1_music_link, battle.quick_battle_artist1_audius_profile_pic);
+    const track2 = extractTrackInfo(battle.artist2_name, battle.artist2_music_link, battle.quick_battle_artist2_audius_profile_pic);
 
     // Helper to aggregate a track's data
     const aggregateTrack = (track: any, isWinner: boolean, score: number) => {
@@ -315,7 +318,7 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
           unique_traders: new Set<number>(),
           created_at: battle.created_at,
           updated_at: battle.last_scanned_at || battle.created_at,
-          image_url: battle.image_url,
+          image_url: track.profilePic || battle.image_url,  // Use per-track image first, then fallback to battle image
           battle_ids: []
         });
       }
@@ -352,8 +355,10 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
         songData.updated_at = battle.last_scanned_at;
       }
 
-      // Keep best artwork
-      if (battle.image_url && !songData.image_url) {
+      // Keep best artwork (prefer per-track images over battle-level images)
+      if (track.profilePic && !songData.image_url) {
+        songData.image_url = track.profilePic;
+      } else if (battle.image_url && !songData.image_url) {
         songData.image_url = battle.image_url;
       }
     };
