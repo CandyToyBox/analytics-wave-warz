@@ -4,6 +4,7 @@ import { useQuickBattleLeaderboard, useRefreshLeaderboards } from '../hooks/useB
 import { formatSol, formatUsd } from '../utils';
 import { Loader2, Search, Trophy, Zap, ListOrdered, RefreshCw, Scan } from 'lucide-react';
 import { fetchBattleOnChain } from '../services/solanaService';
+import { syncQuickBattlesToDatabase } from '../syncBattles';
 
 interface Props {
   battles: BattleSummary[];
@@ -130,6 +131,16 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
         return;
       }
 
+      // STEP 1: Sync battles to database first (so they exist before we try to update them)
+      console.log(`📤 Syncing ${quickBattles.length} Quick Battles to database...`);
+      const syncResult = await syncQuickBattlesToDatabase(battles);
+      console.log(`✅ Sync complete: ${syncResult.inserted} inserted, ${syncResult.updated} updated, ${syncResult.skipped} skipped`);
+
+      if (syncResult.errors.length > 0) {
+        console.warn(`⚠️ ${syncResult.errors.length} battles failed to sync:`, syncResult.errors);
+      }
+
+      // STEP 2: Scan blockchain for volumes
       setScanProgress({ current: 0, total: quickBattles.length });
       console.log(`🔍 Starting blockchain scan for ${quickBattles.length} Quick Battles...`);
 
