@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BattleSummary, TraderLeaderboardEntry } from '../types';
 import { fetchBatchTraderStats } from '../services/solanaService';
-import { saveTraderLeaderboardToDB } from '../services/supabaseClient';
+// import { saveTraderLeaderboardToDB } from '../services/supabaseClient'; // Removed - frontend cannot write to trader_leaderboard due to RLS
 import { Loader2, Search, ArrowUpDown, ArrowUp, ArrowDown, Wallet, Trophy, PlayCircle, StopCircle, Check } from 'lucide-react';
 import { formatSol, formatPct, formatUsd } from '../utils';
 import { useTraderLeaderboard } from '../hooks/useBattleData';
@@ -117,7 +117,10 @@ export const TraderLeaderboard: React.FC<Props> = ({ battles, onSelectTrader, so
             winRate: 0
           };
         });
-        saveTraderLeaderboardToDB(finalTraders);
+        // ⚠️ Frontend cannot save to trader_leaderboard due to RLS policies
+        // This should be done by the backend/webhook
+        // Commenting out to prevent console errors
+        // saveTraderLeaderboardToDB(finalTraders);
       }
     };
 

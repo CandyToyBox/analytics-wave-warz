@@ -126,7 +126,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     // 1) Try the materialized view first (most up-to-date aggregated data)
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
-      .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at, image_url')
+      .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false });
 
