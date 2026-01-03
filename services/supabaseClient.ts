@@ -41,7 +41,10 @@ export const BATTLE_COLUMNS = `
   battle_duration,
   image_url,
   stream_link,
-  is_community_battle
+  is_community_battle,
+  is_quick_battle,
+  quick_battle_queue_id,
+  is_test_battle
 `;
 
 // Removed hardcoded 200 battle limit - fetch ALL battles
