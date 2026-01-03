@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return Response.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { battleId, volumeA, volumeB, tradeCount, uniqueTraders } = await request.json();
+    const { battleId, volumeA, volumeB, tradeCount, uniqueTraders, poolA, poolB } = await request.json();
 
     if (!battleId) {
       return Response.json({ success: false, error: 'battle_id is required' }, { status: 400 });
@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     console.log(`📊 [API] Updating battle ${battleId} volumes:`, {
       volumeA,
       volumeB,
+      poolA,
+      poolB,
       tradeCount,
       uniqueTraders
     });
@@ -38,6 +40,8 @@ export async function POST(request: Request) {
       .update({
         total_volume_a: volumeA,
         total_volume_b: volumeB,
+        artist1_pool: poolA,  // Update pool balances for accurate dashboard totals
+        artist2_pool: poolB,
         trade_count: tradeCount,
         unique_traders: uniqueTraders,
         last_scanned_at: new Date().toISOString()

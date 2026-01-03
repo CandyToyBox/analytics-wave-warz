@@ -516,6 +516,8 @@ export async function updateBattleDynamicStats(state: BattleState) {
         console.log(`📊 Updating battle stats for ${battleId}:`, {
             volumeA: state.totalVolumeA,
             volumeB: state.totalVolumeB,
+            poolA: state.artistASolBalance,
+            poolB: state.artistBSolBalance,
             tradeCount: state.tradeCount,
             uniqueTraders: state.uniqueTraders,
             isQuickBattle: state.isQuickBattle
@@ -539,6 +541,8 @@ export async function updateBattleDynamicStats(state: BattleState) {
                 battleId,
                 volumeA: state.totalVolumeA,
                 volumeB: state.totalVolumeB,
+                poolA: state.artistASolBalance,  // Pool balances for dashboard totals
+                poolB: state.artistBSolBalance,
                 tradeCount: state.tradeCount,
                 uniqueTraders: state.uniqueTraders
             })
