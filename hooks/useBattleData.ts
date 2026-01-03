@@ -76,7 +76,7 @@ export function useBattleDetails(battleId: string | null) {
 
       try {
         const { data, error } = await supabase
-          .from('v_battles_public')
+          .from('battles')
           .select(BATTLE_COLUMNS)
           .eq('battle_id', battleId)
           .maybeSingle();
