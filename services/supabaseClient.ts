@@ -130,6 +130,9 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
   try {
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
+    // TEMPORARILY DISABLED: Materialized view likely includes ALL battles, not just Quick Battles
+    // Re-enable this once the view is updated to filter WHERE is_quick_battle = true
+    /*
     // 1) Try the materialized view first (most up-to-date aggregated data)
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
@@ -171,6 +174,8 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         return mapped;
       }
     }
+    */
+    console.log('⏭️ [Quick Battles] Skipping materialized view (needs is_quick_battle filter)');
 
     // 2) Try dedicated leaderboard table as fallback
     const { data: tableData, error: tableError } = await supabase
