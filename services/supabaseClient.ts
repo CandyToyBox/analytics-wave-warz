@@ -62,7 +62,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
   try {
     const { data, error } = await supabase
-      .from('v_battles_public')
+      .from('battles')
       .select(BATTLE_COLUMNS)
       .order('created_at', { ascending: false });
 
@@ -505,7 +505,10 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
 
 export async function updateBattleDynamicStats(state: BattleState) {
     try {
-        console.log(`📊 Updating battle stats for ${state.battleId}:`, {
+        // Ensure battle_id is a string to match database TEXT column type
+        const battleId = normalizeBattleId(state.battleId);
+
+        console.log(`📊 Updating battle stats for ${battleId}:`, {
             volumeA: state.totalVolumeA,
             volumeB: state.totalVolumeB,
             tradeCount: state.tradeCount,
@@ -528,17 +531,17 @@ export async function updateBattleDynamicStats(state: BattleState) {
                 last_scanned_at: new Date().toISOString(),
                 recent_trades_cache: state.recentTrades
             })
-            .eq('battle_id', state.battleId)
+            .eq('battle_id', battleId)
             .select();
 
         if (error) {
-            console.warn(`⚠️ Failed to update battle stats for ${state.battleId}:`, error.message);
+            console.warn(`⚠️ Failed to update battle stats for ${battleId}:`, error.message);
             console.warn(`💡 Tip: Battle might not exist in database yet. Backend needs to create it first.`);
         } else if (data && data.length === 0) {
-            console.warn(`⚠️ No rows updated for battle ${state.battleId} - battle not found in database`);
+            console.warn(`⚠️ No rows updated for battle ${battleId} - battle not found in database`);
             console.warn(`💡 This battle needs to be inserted by the backend first`);
         } else {
-            console.log(`✅ Battle stats saved successfully for ${state.battleId} (${data?.length || 0} rows updated)`);
+            console.log(`✅ Battle stats saved successfully for ${battleId} (${data?.length || 0} rows updated)`);
         }
     } catch (e) {
         console.error(`❌ Supabase update error for ${state.battleId}:`, e);

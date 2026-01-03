@@ -11,6 +11,7 @@ import {
   enrichBattlesWithMetrics,
   calculateGlobalArtistStats,
 } from '../utils/priceCalculations';
+import { BATTLE_COLUMNS } from '../../services/supabaseClient';
 
 // Validate required environment variables
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -36,13 +37,13 @@ export function useAllBattles() {
   return useQuery({
     queryKey: ['battles', 'all'],
     queryFn: async () => {
-      console.log('🔄 Fetching all battles from v_battles_public...');
-      
+      console.log('🔄 Fetching all battles from database...');
+
       try {
-        // ✅ CRITICAL: Use v_battles_public (PUBLIC VIEW), NOT mv_battle_stats!
+        // Use battles table directly since view doesn't have Quick Battle columns
         const { data, error } = await supabase
-          .from('v_battles_public')  // ✅ This is the PUBLIC VIEW
-          .select('*')
+          .from('battles')
+          .select(BATTLE_COLUMNS)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -170,11 +171,11 @@ export function useGlobalArtistLeaderboard() {
 
         if (error) {
           console.warn('⚠️ Pre-computed leaderboard not available, computing client-side...');
-          
+
           // Fallback: compute from battles
           const { data: battles } = await supabase
-            .from('v_battles_public')
-            .select('*');
+            .from('battles')
+            .select(BATTLE_COLUMNS);
           
           if (battles) {
             return calculateGlobalArtistStats(battles as Battle[]);
