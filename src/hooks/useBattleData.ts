@@ -209,7 +209,7 @@ export function useQuickBattlesArtistLeaderboard() {
         // ✅ READ-ONLY from public view - NEVER write to this table!
         const { data, error } = await supabase
           .from('v_quick_battle_leaderboard_public')
-          .select('*')
+          .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at')
           .eq('is_test_artist', false)  // Exclude test artists
           .order('total_volume_generated', { ascending: false })
           .limit(100);
