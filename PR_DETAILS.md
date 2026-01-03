@@ -214,6 +214,34 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 
 ---
 
+#### 10. ✅ Stale Dashboard Totals - Missing Pool Balance Updates (P2)
+**Error:** Dashboard showing incorrect total SOL volumes for active battles
+
+**Root Cause:**
+- Battle update API only updated volumes and trade counts
+- Did NOT update `artist1_pool` and `artist2_pool` fields
+- Dashboard totals (`useDashboardStats`) still sum `artist1_pool + artist2_pool`
+- Pool balances remained stale after initial insert, only updated on final webhook
+
+**Impact:**
+- ❌ Dashboard total SOL volume metrics were incorrect during active battles
+- ❌ Pool balances only updated at battle start/end, not during trading
+- ❌ Real-time totals didn't reflect current on-chain state
+
+**Fix:**
+- Backend: Added `poolA` and `poolB` parameters to `/api/update-battle-volumes`
+- Backend: Update `artist1_pool` and `artist2_pool` alongside volume fields
+- Frontend: Send `artistASolBalance` and `artistBSolBalance` from `BattleState`
+- Added logging for pool balance updates
+
+**Files Changed:**
+- `api/update-battle-volumes.ts` - Accept and update pool balances
+- `services/supabaseClient.ts` - Send pool balances in payload
+
+**Impact:** ✅ Dashboard totals now show accurate real-time SOL volumes from blockchain
+
+---
+
 ### 📊 Database Status (Verified via SQL)
 
 - ✅ **115 Quick Battles** in database
@@ -243,6 +271,8 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 ### 🔄 Git Commits Included
 
 ```
+f0b1068 fix: persist pool balances to prevent stale dashboard totals (P2)
+4d08369 docs: add Issue #9 - P1 security fix to PR documentation
 e88de1c SECURITY FIX: Add authentication to battle update API (P1)
 3831541 docs: update Issue #8 with correct root cause (using wrong view)
 bb8edf8 fix: use v_quick_battle_leaderboard_public_old view to show correct Quick Battle count
@@ -261,7 +291,7 @@ dc91f0d fix: use battles table instead of v_battles_public view
 63c892c fix: resolve console errors in browser
 ```
 
-**Total:** 16 commits
+**Total:** 18 commits
 
 ---
 
@@ -390,7 +420,7 @@ const battleId = normalizeBattleId(state.battleId);  // Always string
 
 ## 🎉 Summary
 
-This PR resolves **9 critical issues** affecting the Quick Battle leaderboard:
+This PR resolves **10 critical issues** affecting the Quick Battle leaderboard and dashboard:
 - ✅ Fixed database column errors (`image_url` doesn't exist)
 - ✅ Fixed RLS policy violations (frontend can't write to trader_leaderboard)
 - ✅ Fixed duplicate artwork display (per-track images)
@@ -400,5 +430,6 @@ This PR resolves **9 critical issues** affecting the Quick Battle leaderboard:
 - ✅ Added missing Quick Battle fields (`is_quick_battle`, etc.)
 - ✅ Fixed wrong battle count (showing 163 songs instead of 43)
 - 🔒 **SECURITY FIX**: Added authentication to battle update API (P1 - CRITICAL)
+- ✅ Fixed stale dashboard totals by updating pool balances (P2)
 
-**Result:** Clean console, working blockchain scan, accurate volume data, correct battle filtering, and secure API! 🚀
+**Result:** Clean console, working blockchain scan, accurate volume data, correct battle filtering, secure API, and real-time dashboard totals! 🚀
