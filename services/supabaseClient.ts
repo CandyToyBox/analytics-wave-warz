@@ -29,12 +29,12 @@ export const BATTLE_COLUMNS = `
   artist2_wallet,
   artist1_twitter,
   artist2_twitter,
+  artist1_music_link,
+  artist2_music_link,
   artist1_pool,
   artist2_pool,
   artist1_supply,
   artist2_supply,
-  total_tvl,
-  current_leader,
   winner_decided,
   winner_artist_a,
   created_at,
@@ -44,7 +44,11 @@ export const BATTLE_COLUMNS = `
   is_community_battle,
   is_quick_battle,
   quick_battle_queue_id,
-  is_test_battle
+  is_test_battle,
+  total_volume_a,
+  total_volume_b,
+  trade_count,
+  unique_traders
 `;
 
 // Removed hardcoded 200 battle limit - fetch ALL battles
@@ -516,35 +520,31 @@ export async function updateBattleDynamicStats(state: BattleState) {
             isQuickBattle: state.isQuickBattle
         });
 
-        // Note: Frontend can only UPDATE existing battles due to RLS policies
-        // The battles table requires backend/service_role auth to INSERT new rows
-        // This is a security feature to prevent unauthorized battle creation
-        const { data, error } = await supabase
-            .from('battles')
-            .update({
-                artist1_pool: state.artistASolBalance,
-                artist2_pool: state.artistBSolBalance,
-                total_volume_a: state.totalVolumeA,
-                total_volume_b: state.totalVolumeB,
-                trade_count: state.tradeCount,
-                unique_traders: state.uniqueTraders,
-                last_scanned_at: new Date().toISOString(),
-                recent_trades_cache: state.recentTrades
+        // Use backend API with service_role access (bypasses RLS)
+        const response = await fetch('/api/update-battle-volumes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                battleId,
+                volumeA: state.totalVolumeA,
+                volumeB: state.totalVolumeB,
+                tradeCount: state.tradeCount,
+                uniqueTraders: state.uniqueTraders
             })
-            .eq('battle_id', battleId)
-            .select();
+        });
 
-        if (error) {
-            console.warn(`⚠️ Failed to update battle stats for ${battleId}:`, error.message);
-            console.warn(`💡 Tip: Battle might not exist in database yet. Backend needs to create it first.`);
-        } else if (data && data.length === 0) {
-            console.warn(`⚠️ No rows updated for battle ${battleId} - battle not found in database`);
-            console.warn(`💡 This battle needs to be inserted by the backend first`);
+        const result = await response.json();
+
+        if (!result.success) {
+            console.warn(`⚠️ Failed to update battle stats for ${battleId}:`, result.error);
+            if (response.status === 404) {
+                console.warn(`💡 Battle ${battleId} not found in database - needs to be inserted by backend first`);
+            }
         } else {
-            console.log(`✅ Battle stats saved successfully for ${battleId} (${data?.length || 0} rows updated)`);
+            console.log(`✅ Battle stats saved successfully for ${battleId}`);
         }
-    } catch (e) {
-        console.error(`❌ Supabase update error for ${state.battleId}:`, e);
+    } catch (e: any) {
+        console.error(`❌ API update error for ${state.battleId}:`, e.message);
     }
 }
 
