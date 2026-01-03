@@ -148,6 +148,46 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 
 ---
 
+#### 8. ✅ Wrong Battle Count - Showing All Battles Instead of Quick Battles
+**Error:** Quick Battle leaderboard showing 163 battles total instead of 115 Quick Battles
+
+**Root Cause:** The materialized view `v_quick_battle_leaderboard_public` doesn't filter `WHERE is_quick_battle = true`, so it aggregates ALL battles by song instead of just Quick Battles.
+
+**Fix:**
+- Temporarily disabled materialized view query in `fetchQuickBattleLeaderboardFromDB()`
+- Now skips to `quick_battle_leaderboard` table or `battles` table fallback
+- Battles table fallback correctly filters with `.eq('is_quick_battle', true)`
+- Added comment explaining view needs updating
+
+**Files Changed:**
+- `services/supabaseClient.ts` (lines 133-178)
+
+**Impact:** ✅ Quick Battle leaderboard now shows ONLY Quick Battles, not all battles
+
+**Database Fix Needed:**
+```sql
+-- Update materialized view to filter Quick Battles only
+CREATE OR REPLACE MATERIALIZED VIEW v_quick_battle_leaderboard_public AS
+SELECT
+  track_name,
+  audius_profile_pic,
+  battles_participated,
+  wins,
+  losses,
+  win_rate,
+  total_volume_generated,
+  total_trades,
+  unique_traders,
+  updated_at
+FROM battles
+WHERE is_quick_battle = true
+GROUP BY track_name
+-- ... aggregation logic
+;
+```
+
+---
+
 ### 📊 Database Status (Verified via SQL)
 
 - ✅ **115 Quick Battles** in database
@@ -177,6 +217,9 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 ### 🔄 Git Commits Included
 
 ```
+aadeab8 fix: disable materialized view to prevent showing all battles instead of Quick Battles only
+8781e1f fix: remove view-only columns and use backend API for updates
+d414669 docs: update PR details with comprehensive fix documentation
 23530dd fix: normalize battle_id type in updateBattleDynamicStats
 dc91f0d fix: use battles table instead of v_battles_public view
 44f0112 docs: add pull request details and instructions
@@ -188,7 +231,7 @@ dc91f0d fix: use battles table instead of v_battles_public view
 63c892c fix: resolve console errors in browser
 ```
 
-**Total:** 9 commits
+**Total:** 12 commits
 
 ---
 
@@ -317,13 +360,14 @@ const battleId = normalizeBattleId(state.battleId);  // Always string
 
 ## 🎉 Summary
 
-This PR resolves **7 critical issues** affecting the Quick Battle leaderboard:
-- ✅ Fixed database column errors
-- ✅ Fixed RLS policy violations
-- ✅ Fixed duplicate artwork display
-- ✅ Added blockchain scanning capability
-- ✅ Fixed type mismatch preventing updates
+This PR resolves **8 critical issues** affecting the Quick Battle leaderboard:
+- ✅ Fixed database column errors (`image_url` doesn't exist)
+- ✅ Fixed RLS policy violations (frontend can't write to trader_leaderboard)
+- ✅ Fixed duplicate artwork display (per-track images)
+- ✅ Added blockchain scanning capability ("Scan Blockchain" button)
+- ✅ Fixed type mismatch preventing updates (battle_id string conversion)
 - ✅ Migrated from view to table for proper column access
-- ✅ Added missing Quick Battle fields
+- ✅ Added missing Quick Battle fields (`is_quick_battle`, etc.)
+- ✅ Fixed wrong battle count (showing all 163 battles instead of 115 Quick Battles)
 
-**Result:** Clean console, working blockchain scan, accurate volume data! 🚀
+**Result:** Clean console, working blockchain scan, accurate volume data, correct battle filtering! 🚀
