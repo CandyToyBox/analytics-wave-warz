@@ -148,43 +148,31 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 
 ---
 
-#### 8. ✅ Wrong Battle Count - Showing All Battles Instead of Quick Battles
-**Error:** Quick Battle leaderboard showing 163 battles total instead of 115 Quick Battles
+#### 8. ✅ Wrong Battle Count - Showing 163 Songs Instead of 43
+**Error:** Quick Battle leaderboard showing ~163 song entries instead of 43
 
-**Root Cause:** The materialized view `v_quick_battle_leaderboard_public` doesn't filter `WHERE is_quick_battle = true`, so it aggregates ALL battles by song instead of just Quick Battles.
+**Root Cause:**
+- `v_quick_battle_leaderboard_public` and `v_quick_battle_leaderboard_public_mv` are **EMPTY**
+- Code was falling back to `battles` table and aggregating 107 Quick Battles
+- Each battle has 2 songs → ~163 unique songs after deduplication
+- Should use `v_quick_battle_leaderboard_public_old` which has **43 properly aggregated songs**
+
+**Database Schema Discovery:**
+- `v_quick_battle_leaderboard_public_old` ✅ 43 rows (working view!)
+- `v_quick_battle_leaderboard_public` ❌ EMPTY
+- `v_quick_battle_leaderboard_public_mv` ❌ EMPTY
+- `quick_battle_leaderboard` table ❌ EMPTY
+- `battles` table has 107 Quick Battles (excluding test battles)
 
 **Fix:**
-- Temporarily disabled materialized view query in `fetchQuickBattleLeaderboardFromDB()`
-- Now skips to `quick_battle_leaderboard` table or `battles` table fallback
-- Battles table fallback correctly filters with `.eq('is_quick_battle', true)`
-- Added comment explaining view needs updating
+- Changed query from empty `v_quick_battle_leaderboard_public` to working `v_quick_battle_leaderboard_public_old`
+- Added test battle filter to fallback: `.neq('is_test_battle', true)`
+- Now correctly shows **43 unique Quick Battle songs** (not 163)
 
 **Files Changed:**
-- `services/supabaseClient.ts` (lines 133-178)
+- `services/supabaseClient.ts` (lines 133-237)
 
-**Impact:** ✅ Quick Battle leaderboard now shows ONLY Quick Battles, not all battles
-
-**Database Fix Needed:**
-```sql
--- Update materialized view to filter Quick Battles only
-CREATE OR REPLACE MATERIALIZED VIEW v_quick_battle_leaderboard_public AS
-SELECT
-  track_name,
-  audius_profile_pic,
-  battles_participated,
-  wins,
-  losses,
-  win_rate,
-  total_volume_generated,
-  total_trades,
-  unique_traders,
-  updated_at
-FROM battles
-WHERE is_quick_battle = true
-GROUP BY track_name
--- ... aggregation logic
-;
-```
+**Impact:** ✅ Quick Battle leaderboard shows correct number: **43 unique songs** aggregated from Quick Battles
 
 ---
 
@@ -217,6 +205,8 @@ GROUP BY track_name
 ### 🔄 Git Commits Included
 
 ```
+bb8edf8 fix: use v_quick_battle_leaderboard_public_old view to show correct Quick Battle count
+dcf5d3b docs: add Issue #8 - wrong battle count fix to PR documentation
 aadeab8 fix: disable materialized view to prevent showing all battles instead of Quick Battles only
 8781e1f fix: remove view-only columns and use backend API for updates
 d414669 docs: update PR details with comprehensive fix documentation
@@ -231,7 +221,7 @@ dc91f0d fix: use battles table instead of v_battles_public view
 63c892c fix: resolve console errors in browser
 ```
 
-**Total:** 12 commits
+**Total:** 14 commits
 
 ---
 
