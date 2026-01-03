@@ -33,7 +33,6 @@ export const BATTLE_COLUMNS = `
   artist2_pool,
   artist1_supply,
   artist2_supply,
-  total_tvl,
   current_leader,
   winner_decided,
   winner_artist_a,
