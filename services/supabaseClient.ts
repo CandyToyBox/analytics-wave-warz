@@ -130,13 +130,10 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
   try {
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
-    // TEMPORARILY DISABLED: Materialized view likely includes ALL battles, not just Quick Battles
-    // Re-enable this once the view is updated to filter WHERE is_quick_battle = true
-    /*
-    // 1) Try the materialized view first (most up-to-date aggregated data)
+    // 1) Try the working "_old" view first (properly filters Quick Battles and aggregates by song)
     const { data: viewData, error: viewError } = await supabase
-      .from('v_quick_battle_leaderboard_public')
-      .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at')
+      .from('v_quick_battle_leaderboard_public_old')
+      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false });
 
@@ -145,7 +142,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     }
 
     if (!viewError && viewData && viewData.length > 0) {
-      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from materialized view`);
+      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from v_quick_battle_leaderboard_public_old`);
       console.log('📊 [Quick Battles] Sample entry:', viewData[0]);
       console.log('🔢 [Quick Battles] Top 3 volumes:',
         viewData.slice(0, 3).map(e => ({
@@ -174,8 +171,6 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         return mapped;
       }
     }
-    */
-    console.log('⏭️ [Quick Battles] Skipping materialized view (needs is_quick_battle filter)');
 
     // 2) Try dedicated leaderboard table as fallback
     const { data: tableData, error: tableError } = await supabase
@@ -236,6 +231,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         last_scanned_at
       `)
       .eq('is_quick_battle', true)
+      .neq('is_test_battle', true)  // Exclude test battles (matches view logic)
       .not('artist1_music_link', 'is', null)
       .not('artist2_music_link', 'is', null)
       .order('created_at', { ascending: false });
