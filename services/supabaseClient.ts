@@ -51,6 +51,33 @@ export const BATTLE_COLUMNS = `
   unique_traders
 `;
 
+// Legacy-safe fallback column list (omits fields that may not exist in older DBs)
+const FALLBACK_BATTLE_COLUMNS = `
+  battle_id,
+  status,
+  artist1_name,
+  artist2_name,
+  artist1_wallet,
+  artist2_wallet,
+  artist1_twitter,
+  artist2_twitter,
+  artist1_pool,
+  artist2_pool,
+  winner_decided,
+  winner_artist_a,
+  created_at,
+  battle_duration,
+  image_url,
+  stream_link,
+  is_community_battle,
+  is_quick_battle,
+  quick_battle_queue_id,
+  is_test_battle
+`;
+
+const NON_TEST_BATTLE_FILTER = 'is_test_battle.is.null,is_test_battle.eq.false';
+const POSTGRES_UNDEFINED_COLUMN_ERROR = '42703';
+
 // Removed hardcoded 200 battle limit - fetch ALL battles
 // Historical battles are static (webhook sends metadata, blockchain scan adds volumes)
 
@@ -65,22 +92,43 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
   }
 
   try {
-    const { data, error } = await supabase
+    const baseQuery = supabase
       .from('battles')
       .select(BATTLE_COLUMNS)
+      .or(NON_TEST_BATTLE_FILTER)
       .order('created_at', { ascending: false });
 
+    const { data, error } = await baseQuery;
+    let rows = data;
+
     if (error) {
-      console.warn("Supabase fetch warning (Official DB might be unreachable):", JSON.stringify(error, null, 2));
-      return null;
+      // Handle legacy column mismatches where newer metrics columns are absent.
+      if (error.code === POSTGRES_UNDEFINED_COLUMN_ERROR) {
+        console.warn("Supabase column mismatch detected, retrying with fallback column list...");
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('battles')
+          .select(FALLBACK_BATTLE_COLUMNS)
+          .or(NON_TEST_BATTLE_FILTER)
+          .order('created_at', { ascending: false });
+
+        if (fallbackError) {
+          console.warn("Supabase fallback fetch failed:", JSON.stringify(fallbackError, null, 2));
+          return null;
+        }
+
+        rows = fallbackData;
+      } else {
+        console.warn("Supabase fetch warning (Official DB might be unreachable):", JSON.stringify(error, null, 2));
+        return null;
+      }
     }
 
-    if (!data || data.length === 0) {
+    if (!rows || rows.length === 0) {
       console.log("Supabase connected but returned no battles. Using local fallback.");
       return null;
     }
 
-    return data
+    return rows
       .map((row: any) => {
         const battleId = normalizeBattleId(row.battle_id);
 
@@ -115,6 +163,9 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
           imageUrl: row.image_url,
           streamLink: row.stream_link,
           isCommunityBattle: row.is_community_battle,
+          isQuickBattle: row.is_quick_battle,
+          isTestBattle: row.is_test_battle,
+          quickBattleQueueId: row.quick_battle_queue_id,
         };
       })
       .filter(Boolean) as BattleSummary[];
