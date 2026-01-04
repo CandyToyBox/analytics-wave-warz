@@ -316,8 +316,8 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
       if (!songMap.has(key)) {
         songMap.set(key, {
           track_name: track.trackName,
-          audius_profile_pic: track.musicLink,
-          audius_profile_url: track.musicLink,
+          audius_profile_pic: track.profilePic,
+          audius_profile_url: track.profilePic || track.musicLink,
           battles_participated: 0,
           wins: 0,
           losses: 0,
@@ -483,9 +483,11 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
       updatedAt: row.updated_at || row.last_scanned_at || row.created_at,
       audiusHandle: row.audius_handle || extractAudiusHandle(row.artist1_music_link) || extractAudiusHandle(row.artist2_music_link),
       trackName: row.track_name ?? row.artist1_name ?? null,
-      // Prefer image_url for artwork (materialized view has audius_profile_pic as track URL, not image)
+      // Prefer image_url for artwork (materialized view may have audius_profile_pic as track URL before migration)
+      // Fallback to music links as last resort for backwards compatibility with older data
       audiusProfilePic: row.image_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link,
-      audiusProfileUrl: row.audius_profile_pic ?? row.audius_profile_url ?? row.artist1_music_link ?? null,
+      // Profile URL can be the music link itself, or audius_profile_pic if it contains a valid URL
+      audiusProfileUrl: row.audius_profile_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? null,
       battlesParticipated,
       totalTrades: toNumber(row.total_trades) ?? toNumber(row.trade_count),
       wins,
