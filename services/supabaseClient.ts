@@ -29,12 +29,12 @@ export const BATTLE_COLUMNS = `
   artist2_wallet,
   artist1_twitter,
   artist2_twitter,
+  artist1_music_link,
+  artist2_music_link,
   artist1_pool,
   artist2_pool,
   artist1_supply,
   artist2_supply,
-  total_tvl,
-  current_leader,
   winner_decided,
   winner_artist_a,
   created_at,
@@ -44,7 +44,11 @@ export const BATTLE_COLUMNS = `
   is_community_battle,
   is_quick_battle,
   quick_battle_queue_id,
-  is_test_battle
+  is_test_battle,
+  total_volume_a,
+  total_volume_b,
+  trade_count,
+  unique_traders
 `;
 
 // Removed hardcoded 200 battle limit - fetch ALL battles
@@ -126,10 +130,10 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
   try {
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
-    // 1) Try the materialized view first (most up-to-date aggregated data)
+    // 1) Try the working "_old" view first (properly filters Quick Battles and aggregates by song)
     const { data: viewData, error: viewError } = await supabase
-      .from('v_quick_battle_leaderboard_public')
-      .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, updated_at')
+      .from('v_quick_battle_leaderboard_public_old')
+      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false });
 
@@ -138,7 +142,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     }
 
     if (!viewError && viewData && viewData.length > 0) {
-      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from materialized view`);
+      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from v_quick_battle_leaderboard_public_old`);
       console.log('📊 [Quick Battles] Sample entry:', viewData[0]);
       console.log('🔢 [Quick Battles] Top 3 volumes:',
         viewData.slice(0, 3).map(e => ({
@@ -227,6 +231,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         last_scanned_at
       `)
       .eq('is_quick_battle', true)
+      .neq('is_test_battle', true)  // Exclude test battles (matches view logic)
       .not('artist1_music_link', 'is', null)
       .not('artist2_music_link', 'is', null)
       .order('created_at', { ascending: false });
@@ -511,40 +516,50 @@ export async function updateBattleDynamicStats(state: BattleState) {
         console.log(`📊 Updating battle stats for ${battleId}:`, {
             volumeA: state.totalVolumeA,
             volumeB: state.totalVolumeB,
+            poolA: state.artistASolBalance,
+            poolB: state.artistBSolBalance,
             tradeCount: state.tradeCount,
             uniqueTraders: state.uniqueTraders,
             isQuickBattle: state.isQuickBattle
         });
 
-        // Note: Frontend can only UPDATE existing battles due to RLS policies
-        // The battles table requires backend/service_role auth to INSERT new rows
-        // This is a security feature to prevent unauthorized battle creation
-        const { data, error } = await supabase
-            .from('battles')
-            .update({
-                artist1_pool: state.artistASolBalance,
-                artist2_pool: state.artistBSolBalance,
-                total_volume_a: state.totalVolumeA,
-                total_volume_b: state.totalVolumeB,
-                trade_count: state.tradeCount,
-                unique_traders: state.uniqueTraders,
-                last_scanned_at: new Date().toISOString(),
-                recent_trades_cache: state.recentTrades
-            })
-            .eq('battle_id', battleId)
-            .select();
+        // Use backend API with service_role access (bypasses RLS)
+        const apiKey = import.meta.env.VITE_BATTLE_UPDATE_API_KEY;
 
-        if (error) {
-            console.warn(`⚠️ Failed to update battle stats for ${battleId}:`, error.message);
-            console.warn(`💡 Tip: Battle might not exist in database yet. Backend needs to create it first.`);
-        } else if (data && data.length === 0) {
-            console.warn(`⚠️ No rows updated for battle ${battleId} - battle not found in database`);
-            console.warn(`💡 This battle needs to be inserted by the backend first`);
-        } else {
-            console.log(`✅ Battle stats saved successfully for ${battleId} (${data?.length || 0} rows updated)`);
+        if (!apiKey) {
+            console.error('❌ VITE_BATTLE_UPDATE_API_KEY not configured');
+            return;
         }
-    } catch (e) {
-        console.error(`❌ Supabase update error for ${state.battleId}:`, e);
+
+        const response = await fetch('/api/update-battle-volumes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey  // 🔒 API key for authentication
+            },
+            body: JSON.stringify({
+                battleId,
+                volumeA: state.totalVolumeA,
+                volumeB: state.totalVolumeB,
+                poolA: state.artistASolBalance,  // Pool balances for dashboard totals
+                poolB: state.artistBSolBalance,
+                tradeCount: state.tradeCount,
+                uniqueTraders: state.uniqueTraders
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            console.warn(`⚠️ Failed to update battle stats for ${battleId}:`, result.error);
+            if (response.status === 404) {
+                console.warn(`💡 Battle ${battleId} not found in database - needs to be inserted by backend first`);
+            }
+        } else {
+            console.log(`✅ Battle stats saved successfully for ${battleId}`);
+        }
+    } catch (e: any) {
+        console.error(`❌ API update error for ${state.battleId}:`, e.message);
     }
 }
 

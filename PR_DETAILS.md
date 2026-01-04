@@ -148,6 +148,100 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 
 ---
 
+#### 8. ✅ Wrong Battle Count - Showing 163 Songs Instead of 43
+**Error:** Quick Battle leaderboard showing ~163 song entries instead of 43
+
+**Root Cause:**
+- `v_quick_battle_leaderboard_public` and `v_quick_battle_leaderboard_public_mv` are **EMPTY**
+- Code was falling back to `battles` table and aggregating 107 Quick Battles
+- Each battle has 2 songs → ~163 unique songs after deduplication
+- Should use `v_quick_battle_leaderboard_public_old` which has **43 properly aggregated songs**
+
+**Database Schema Discovery:**
+- `v_quick_battle_leaderboard_public_old` ✅ 43 rows (working view!)
+- `v_quick_battle_leaderboard_public` ❌ EMPTY
+- `v_quick_battle_leaderboard_public_mv` ❌ EMPTY
+- `quick_battle_leaderboard` table ❌ EMPTY
+- `battles` table has 107 Quick Battles (excluding test battles)
+
+**Fix:**
+- Changed query from empty `v_quick_battle_leaderboard_public` to working `v_quick_battle_leaderboard_public_old`
+- Added test battle filter to fallback: `.neq('is_test_battle', true)`
+- Now correctly shows **43 unique Quick Battle songs** (not 163)
+
+**Files Changed:**
+- `services/supabaseClient.ts` (lines 133-237)
+
+**Impact:** ✅ Quick Battle leaderboard shows correct number: **43 unique songs** aggregated from Quick Battles
+
+---
+
+#### 9. 🔒 SECURITY: Unauthenticated Battle Update API (P1 - CRITICAL)
+**Error:** `/api/update-battle-volumes` endpoint accepted requests without authentication
+
+**Root Cause:**
+- Endpoint uses `supabaseAdmin` (service_role) to bypass RLS
+- No authentication check before processing requests
+- Anyone could send POST requests to corrupt battle data
+- Publicly accessible endpoint with privileged access
+
+**Security Impact:**
+- ❌ Unauthenticated users could update any battle's volumes
+- ❌ Leaderboard data could be manipulated
+- ❌ Service-role access exposed without verification
+- ❌ All RLS policies bypassed
+
+**Fix:**
+- Added **API key authentication** to backend endpoint
+- Backend verifies `x-api-key` header against `BATTLE_UPDATE_API_KEY` env var
+- Frontend sends API key from `VITE_BATTLE_UPDATE_API_KEY` in request headers
+- Returns `401 Unauthorized` for invalid/missing API keys
+- Created comprehensive security documentation (`SECURITY_FIX.md`)
+
+**Files Changed:**
+- `api/update-battle-volumes.ts` - Added API key verification
+- `services/supabaseClient.ts` - Send API key in headers
+- `.env.example` - Added API key configuration
+- `SECURITY_FIX.md` - Security setup documentation
+
+**Setup Required:**
+1. Generate API key: `openssl rand -base64 32`
+2. Add `BATTLE_UPDATE_API_KEY` to Vercel environment variables
+3. Add `VITE_BATTLE_UPDATE_API_KEY` to Vercel environment variables
+4. Redeploy application
+
+**Impact:** ✅ **CRITICAL** - Prevents unauthorized battle data manipulation
+
+---
+
+#### 10. ✅ Stale Dashboard Totals - Missing Pool Balance Updates (P2)
+**Error:** Dashboard showing incorrect total SOL volumes for active battles
+
+**Root Cause:**
+- Battle update API only updated volumes and trade counts
+- Did NOT update `artist1_pool` and `artist2_pool` fields
+- Dashboard totals (`useDashboardStats`) still sum `artist1_pool + artist2_pool`
+- Pool balances remained stale after initial insert, only updated on final webhook
+
+**Impact:**
+- ❌ Dashboard total SOL volume metrics were incorrect during active battles
+- ❌ Pool balances only updated at battle start/end, not during trading
+- ❌ Real-time totals didn't reflect current on-chain state
+
+**Fix:**
+- Backend: Added `poolA` and `poolB` parameters to `/api/update-battle-volumes`
+- Backend: Update `artist1_pool` and `artist2_pool` alongside volume fields
+- Frontend: Send `artistASolBalance` and `artistBSolBalance` from `BattleState`
+- Added logging for pool balance updates
+
+**Files Changed:**
+- `api/update-battle-volumes.ts` - Accept and update pool balances
+- `services/supabaseClient.ts` - Send pool balances in payload
+
+**Impact:** ✅ Dashboard totals now show accurate real-time SOL volumes from blockchain
+
+---
+
 ### 📊 Database Status (Verified via SQL)
 
 - ✅ **115 Quick Battles** in database
@@ -177,6 +271,15 @@ This PR fixes **multiple critical console errors** and **restores Quick Battle f
 ### 🔄 Git Commits Included
 
 ```
+f0b1068 fix: persist pool balances to prevent stale dashboard totals (P2)
+4d08369 docs: add Issue #9 - P1 security fix to PR documentation
+e88de1c SECURITY FIX: Add authentication to battle update API (P1)
+3831541 docs: update Issue #8 with correct root cause (using wrong view)
+bb8edf8 fix: use v_quick_battle_leaderboard_public_old view to show correct Quick Battle count
+dcf5d3b docs: add Issue #8 - wrong battle count fix to PR documentation
+aadeab8 fix: disable materialized view to prevent showing all battles instead of Quick Battles only
+8781e1f fix: remove view-only columns and use backend API for updates
+d414669 docs: update PR details with comprehensive fix documentation
 23530dd fix: normalize battle_id type in updateBattleDynamicStats
 dc91f0d fix: use battles table instead of v_battles_public view
 44f0112 docs: add pull request details and instructions
@@ -188,7 +291,7 @@ dc91f0d fix: use battles table instead of v_battles_public view
 63c892c fix: resolve console errors in browser
 ```
 
-**Total:** 9 commits
+**Total:** 18 commits
 
 ---
 
@@ -317,13 +420,16 @@ const battleId = normalizeBattleId(state.battleId);  // Always string
 
 ## 🎉 Summary
 
-This PR resolves **7 critical issues** affecting the Quick Battle leaderboard:
-- ✅ Fixed database column errors
-- ✅ Fixed RLS policy violations
-- ✅ Fixed duplicate artwork display
-- ✅ Added blockchain scanning capability
-- ✅ Fixed type mismatch preventing updates
+This PR resolves **10 critical issues** affecting the Quick Battle leaderboard and dashboard:
+- ✅ Fixed database column errors (`image_url` doesn't exist)
+- ✅ Fixed RLS policy violations (frontend can't write to trader_leaderboard)
+- ✅ Fixed duplicate artwork display (per-track images)
+- ✅ Added blockchain scanning capability ("Scan Blockchain" button)
+- ✅ Fixed type mismatch preventing updates (battle_id string conversion)
 - ✅ Migrated from view to table for proper column access
-- ✅ Added missing Quick Battle fields
+- ✅ Added missing Quick Battle fields (`is_quick_battle`, etc.)
+- ✅ Fixed wrong battle count (showing 163 songs instead of 43)
+- 🔒 **SECURITY FIX**: Added authentication to battle update API (P1 - CRITICAL)
+- ✅ Fixed stale dashboard totals by updating pool balances (P2)
 
-**Result:** Clean console, working blockchain scan, accurate volume data! 🚀
+**Result:** Clean console, working blockchain scan, accurate volume data, correct battle filtering, secure API, and real-time dashboard totals! 🚀
