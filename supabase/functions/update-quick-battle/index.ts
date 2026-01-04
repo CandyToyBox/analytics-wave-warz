@@ -3,7 +3,7 @@
 // ============================================================================
 // This edge function redirects all requests to the new battles-webhook endpoint
 // URL: https://gshwqoplsxgqbdkssoit.supabase.co/functions/v1/battles-webhook
-// Protected with HMAC-SHA256 signature verification
+// Protected with HMAC-SHA256 signature verification (REQUIRED)
 
 import { verifyHmac } from '../shared/hmac.ts';
 
@@ -11,14 +11,15 @@ const BATTLES_WEBHOOK_URL = 'https://gshwqoplsxgqbdkssoit.supabase.co/functions/
 const HMAC_SECRET = Deno.env.get('HMAC_SECRET') || '';
 
 if (!HMAC_SECRET) {
-  console.warn('⚠️  HMAC_SECRET is not set - optional auth mode enabled');
+  console.error('❌ HMAC_SECRET is not set - this function requires authentication');
+  throw new Error('HMAC_SECRET environment variable is required');
 }
 
 Deno.serve(async (req: Request) => {
-  // HMAC verification (optional - allows requests without HMAC headers)
+  // HMAC verification (REQUIRED - rejects requests without valid HMAC)
   const { ok, body, error } = await verifyHmac(req, HMAC_SECRET);
   if (!ok) {
-    console.error('❌ HMAC verification failed (signature mismatch):', error);
+    console.error('❌ HMAC verification failed:', error);
     return new Response(JSON.stringify({ error }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

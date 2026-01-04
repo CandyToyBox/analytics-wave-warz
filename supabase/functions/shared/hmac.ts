@@ -3,7 +3,6 @@
 // ============================================================================
 // Shared HMAC-SHA256 signature verification for securing Supabase Edge Functions
 // Uses X-Signature and X-Timestamp headers with constant-time comparison
-// OPTIONAL AUTH: If no secret is configured or headers are missing, allows request through
 
 export async function verifyHmac(
   req: Request,
@@ -12,18 +11,8 @@ export async function verifyHmac(
   const sig = req.headers.get('x-signature');
   const ts = req.headers.get('x-timestamp');
 
-  // ✅ OPTIONAL AUTH: If no secret is configured, skip HMAC verification
-  if (!secret) {
-    console.warn('⚠️  HMAC_SECRET not configured - skipping signature verification');
-    const body = await req.text();
-    return { ok: true, body };
-  }
-
-  // ✅ OPTIONAL AUTH: If headers are missing, allow request (for external webhooks)
   if (!sig || !ts) {
-    console.warn('⚠️  Signature headers missing - allowing request (external webhook)');
-    const body = await req.text();
-    return { ok: true, body };
+    return { ok: false, error: 'Missing signature headers' };
   }
 
   // Enforce max age (5 minutes = 300 seconds)

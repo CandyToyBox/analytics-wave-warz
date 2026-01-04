@@ -2,8 +2,8 @@
 // BATTLES WEBHOOK - MAIN WEBHOOK HANDLER
 // ============================================================================
 // Processes battle INSERT and UPDATE events from external WaveWarz webhooks
-// PUBLIC ENDPOINT - No authentication required (accepts all requests)
-// For production, consider adding a shared secret header validation
+// PUBLIC ENDPOINT - No authentication required (explicitly unprotected)
+// This endpoint is intentionally public to accept webhooks from external sources
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
