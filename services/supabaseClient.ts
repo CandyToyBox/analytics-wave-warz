@@ -316,8 +316,8 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
       if (!songMap.has(key)) {
         songMap.set(key, {
           track_name: track.trackName,
-          audius_profile_pic: track.musicLink,
-          audius_profile_url: track.musicLink,
+          audius_profile_pic: track.profilePic,
+          audius_profile_url: track.profilePic || track.musicLink,
           battles_participated: 0,
           wins: 0,
           losses: 0,
