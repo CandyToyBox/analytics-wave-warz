@@ -124,17 +124,16 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
     // 1) Try dedicated leaderboard table (preferred when populated)
+    // Note: This table may not exist in production - it's optional
     const { data: tableData, error: tableError } = await supabase
       .from('quick_battle_leaderboard')
-      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, peak_pool_size, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at, is_test_artist')
-      .neq('is_test_artist', true)
+      .select('*')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false })
-      .order('last_battle_date', { ascending: false })
       .limit(200);
 
     if (tableError) {
-      console.warn('⚠️ [Quick Battles] Table query error:', tableError);
+      console.warn('⚠️ [Quick Battles] Table query error (table may not exist):', tableError.message);
     }
 
     if (!tableError && tableData && tableData.length > 0) {
@@ -167,18 +166,19 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
       }
     }
 
-    // 2) Try the view
+    // 2) Try the materialized view
+    // Schema from migration 003: track_name, audius_profile_pic (URL), battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, created_at, updated_at, image_url
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public')
-      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, peak_pool_size, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at, is_test_artist')
-      .neq('is_test_artist', true)
+      .select('track_name, audius_profile_pic, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, created_at, updated_at, image_url')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false })
-      .order('last_battle_date', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(200);
 
     if (viewError) {
-      console.warn('⚠️ [Quick Battles] View query error:', viewError);
+      console.warn('⚠️ [Quick Battles] View query error:', viewError.message);
+      console.warn('⚠️ [Quick Battles] This likely means the materialized view needs to be created/refreshed');
     }
 
     // If view works and has data, use it (already aggregated)
