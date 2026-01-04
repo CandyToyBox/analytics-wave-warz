@@ -94,7 +94,7 @@
 - Adds `NON_TEST_BATTLE_FILTER` constant
 
 **Why Close:**
-- **Based on PR #64's branch** - not on main!
+- **Based on PR #64's branch** - not on main! This creates a dependency chain where PR #66 cannot be merged independently. If PR #64 is updated or closed, PR #66 becomes orphaned.
 - **Incremental to #64** - should be merged into #64 or applied after
 - **Draft status** - not ready for independent merge
 - **Better approach:** If these changes are needed, apply them to PR #64 before merging
@@ -135,10 +135,10 @@ Reason: Redundant with PR #64
 Message: "Closing in favor of PR #64 which includes more comprehensive fixes and security improvements."
 ```
 
-### 5. Close PR #68 (this PR)
+### 5. Close PR #68 (The analysis/meta PR)
 ```
 Reason: Task complete
-Message: "PR queue processed. Consolidated into PR #64."
+Message: "PR queue analysis complete. Recommendation: merge PR #64. See documentation files for details."
 ```
 
 ---

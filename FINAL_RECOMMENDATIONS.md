@@ -146,7 +146,7 @@ After merging PR #64, create a cleanup PR to remove:
 - `COMPLETION_SUMMARY.md`
 - `DATA_INTEGRITY_FINDINGS.md`
 - `DIAGNOSTIC_REPORT.md`
-- `FINAL_RECOMMENDATIONS.md` (this file)
+- `FINAL_RECOMMENDATIONS.md`
 - `IMPLEMENTATION_SUMMARY_OLD.md`
 - `INVESTIGATION_FINAL_REPORT.md`
 - `PR_CONSOLIDATION_PLAN.md`
@@ -215,13 +215,15 @@ After merging PR #64, create a cleanup PR to remove:
 
 ## Timeline
 
-**Total Time: ~30 minutes**
+**Total Time: ~30 minutes** (includes buffer for deployment waiting)
 - Step 1 (Merge): 2 minutes
 - Step 2 (Env vars): 5 minutes
-- Step 3 (Deploy): Auto (5-10 min)
+- Step 3 (Deploy): Auto (5-10 min waiting)
 - Step 4 (Verify): 5 minutes
 - Step 5 (Close PRs): 5 minutes
-- Step 6 (Cleanup): Later
+- Step 6 (Cleanup): Later (optional)
+
+*Note: Most time is waiting for automatic deployment*
 
 ---
 
