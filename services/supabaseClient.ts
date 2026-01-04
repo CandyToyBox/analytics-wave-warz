@@ -484,7 +484,9 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
       audiusHandle: row.audius_handle || extractAudiusHandle(row.artist1_music_link) || extractAudiusHandle(row.artist2_music_link),
       trackName: row.track_name ?? row.artist1_name ?? null,
       // Prefer image_url for artwork (materialized view may have audius_profile_pic as track URL before migration)
+      // Fallback to music links as last resort for backwards compatibility with older data
       audiusProfilePic: row.image_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? row.artist2_music_link,
+      // Profile URL can be the music link itself, or audius_profile_pic if it contains a valid URL
       audiusProfileUrl: row.audius_profile_url ?? row.audius_profile_pic ?? row.artist1_music_link ?? null,
       battlesParticipated,
       totalTrades: toNumber(row.total_trades) ?? toNumber(row.trade_count),
