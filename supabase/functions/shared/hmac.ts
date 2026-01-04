@@ -11,6 +11,10 @@ export async function verifyHmac(
   const sig = req.headers.get('x-signature');
   const ts = req.headers.get('x-timestamp');
 
+  if (!secret) {
+    return { ok: false, error: 'HMAC secret is required' };
+  }
+
   if (!sig || !ts) {
     return { ok: false, error: 'Missing signature headers' };
   }
