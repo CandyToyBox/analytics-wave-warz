@@ -1,7 +1,13 @@
 // ============================================================================
 // UPDATE BATTLE VOLUMES - Backend endpoint with service_role access
 // ============================================================================
-import { supabaseAdmin } from './utils/supabase-admin';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client with service role
+const supabaseAdmin = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: Request) {
   try {
