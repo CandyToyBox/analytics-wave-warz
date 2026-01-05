@@ -4,6 +4,7 @@ import { useQuickBattleLeaderboard, useRefreshLeaderboards } from '../hooks/useB
 import { formatSol, formatUsd } from '../utils';
 import { Loader2, Search, Trophy, Zap, ListOrdered, RefreshCw, Scan } from 'lucide-react';
 import { fetchBattleOnChain } from '../services/solanaService';
+import { supabase, BATTLE_COLUMNS } from '../services/supabaseClient';
 
 interface Props {
   battles: BattleSummary[];
@@ -122,13 +123,61 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     setScanProgress({ current: 0, total: 0 });
 
     try {
-      // Get all Quick Battles
-      const quickBattles = battles.filter(b => b.isQuickBattle);
+      // Query database for ALL Quick Battles
+      console.log('🔍 Querying database for Quick Battles...');
+      const { data: quickBattlesData, error } = await supabase
+        .from('battles')
+        .select(BATTLE_COLUMNS)
+        .eq('is_quick_battle', true)
+        .order('created_at', { ascending: false })
+        .limit(50); // Limit to 50 at a time to avoid timeouts
 
-      if (quickBattles.length === 0) {
-        alert('No Quick Battles found to scan');
+      if (error) {
+        console.error('❌ Failed to query Quick Battles:', error);
+        alert(`Failed to query Quick Battles: ${error.message}`);
         return;
       }
+
+      if (!quickBattlesData || quickBattlesData.length === 0) {
+        alert('No Quick Battles found in database to scan');
+        return;
+      }
+
+      console.log(`📊 Found ${quickBattlesData.length} Quick Battles in database`);
+
+      // Convert database rows to BattleSummary format
+      const quickBattles: BattleSummary[] = quickBattlesData.map((row: any) => ({
+        id: row.battle_id,
+        battleId: row.battle_id,
+        createdAt: row.created_at,
+        status: row.status || 'active',
+        isQuickBattle: true,
+        quickBattleQueueId: row.quick_battle_queue_id,
+        artistA: {
+          id: 'A',
+          name: row.artist1_name || 'Artist A',
+          wallet: row.artist1_wallet || '',
+          avatar: '',
+          color: 'blue',
+          twitter: row.artist1_twitter,
+          musicLink: row.artist1_music_link
+        },
+        artistB: {
+          id: 'B',
+          name: row.artist2_name || 'Artist B',
+          wallet: row.artist2_wallet || '',
+          avatar: '',
+          color: 'green',
+          twitter: row.artist2_twitter,
+          musicLink: row.artist2_music_link
+        },
+        battleDuration: row.battle_duration || 0,
+        winnerDecided: row.winner_decided || false,
+        imageUrl: row.image_url || '',
+        streamLink: row.stream_link,
+        artistASolBalance: row.total_volume_a,
+        artistBSolBalance: row.total_volume_b,
+      }));
 
       setScanProgress({ current: 0, total: quickBattles.length });
       console.log(`🔍 Starting blockchain scan for ${quickBattles.length} Quick Battles...`);
