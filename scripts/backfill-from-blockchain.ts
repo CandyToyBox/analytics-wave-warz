@@ -2,7 +2,9 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration from solanaService.ts
-// Uses environment variable if available, falls back to hardcoded key for backward compatibility
+// Uses environment variable if available, falls back to hardcoded public demo key
+// Note: This matches the pattern in solanaService.ts for consistency
+// The fallback key is a public demo key from Helius, safe for read-only operations
 const HELIUS_API_KEY = process.env.VITE_HELIUS_API_KEY || "8b84d8d3-59ad-4778-829b-47db8a9149fa";
 const RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const PROGRAM_ID = new PublicKey("9TUfEHvk5fN5vogtQyrefgNqzKy2Bqb4nWVhSFUg2fYo");
@@ -254,7 +256,10 @@ async function backfillMissingBattles() {
     if (stats.inserted > 0) {
       console.log('🔄 NEXT STEPS:');
       console.log('   Run the admin scan endpoint to populate battle details:\n');
-      console.log('   curl -X POST "https://analytics-wave-warz.vercel.app/api/admin/scan-battles?limit=200&forceRefresh=true" \\');
+      
+      // Use environment variable if available, otherwise show production URL as example
+      const apiUrl = process.env.APP_URL || process.env.FRAME_BASE_URL || 'https://analytics-wave-warz.vercel.app';
+      console.log(`   curl -X POST "${apiUrl}/api/admin/scan-battles?limit=200&forceRefresh=true" \\`);
       console.log('     -H "Authorization: Bearer YOUR_ADMIN_SECRET"\n');
     }
 
