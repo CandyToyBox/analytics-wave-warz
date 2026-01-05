@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backfill": "tsx scripts/backfill-from-blockchain.ts",
+    "backfill:dev": "tsx watch scripts/backfill-from-blockchain.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.3",
@@ -39,6 +41,7 @@
     "eslint-plugin-react-refresh": "^0.4.5",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.2.2",
     "vite": "^5.1.6"
   }
