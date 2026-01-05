@@ -2,7 +2,8 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration from solanaService.ts
-const HELIUS_API_KEY = "8b84d8d3-59ad-4778-829b-47db8a9149fa";
+// Uses environment variable if available, falls back to hardcoded key for backward compatibility
+const HELIUS_API_KEY = process.env.VITE_HELIUS_API_KEY || "8b84d8d3-59ad-4778-829b-47db8a9149fa";
 const RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 const PROGRAM_ID = new PublicKey("9TUfEHvk5fN5vogtQyrefgNqzKy2Bqb4nWVhSFUg2fYo");
 
@@ -125,14 +126,14 @@ async function insertMinimalBattle(battleId: string, accountPubkey: PublicKey): 
       .from('battles')
       .insert({
         battle_id: battleId,
-        artist1_name: `Battle ${battleId} - Artist A`,
-        artist2_name: `Battle ${battleId} - Artist B`,
-        artist1_wallet: accountPubkey.toString(), // Temporary - will be updated by scanner
-        artist2_wallet: accountPubkey.toString(), // Temporary - will be updated by scanner
+        artist1_name: `[Pending Scan] Battle ${battleId} Artist A`,
+        artist2_name: `[Pending Scan] Battle ${battleId} Artist B`,
+        artist1_wallet: null, // Will be populated by scanner
+        artist2_wallet: null, // Will be populated by scanner
         created_at: new Date().toISOString(),
-        battle_duration: 600, // Default 10 minutes for Quick Battles
-        is_quick_battle: false, // Will be determined by scanner
-        status: 'ACTIVE',
+        battle_duration: 0, // Will be determined by scanner from on-chain data
+        is_quick_battle: null, // Will be determined by scanner
+        status: 'PENDING',
         artist1_pool: 0,
         artist2_pool: 0,
         total_volume_a: 0,
