@@ -27,7 +27,6 @@ export async function GET(request: Request) {
       .from('battles')
       .select('battle_id, artist1_wallet, artist2_wallet, created_at, status')
       .eq('is_quick_battle', true)
-      .or('total_volume_a.is.null,total_volume_a.eq.0')
       .order('created_at', { ascending: false })
       .limit(50); // Scan 50 at a time to avoid timeouts
 
