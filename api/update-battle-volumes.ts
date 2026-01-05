@@ -1,7 +1,13 @@
 // ============================================================================
 // UPDATE BATTLE VOLUMES - Backend endpoint with service_role access
 // ============================================================================
-import { supabaseAdmin } from './utils/supabase-admin';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client with service role (same pattern as webhook)
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: Request) {
   try {
@@ -34,8 +40,8 @@ export async function POST(request: Request) {
       uniqueTraders
     });
 
-    // Use supabaseAdmin (service_role) to bypass RLS
-    const { data, error } = await supabaseAdmin
+    // Use supabase (service_role) to bypass RLS
+    const { data, error } = await supabase
       .from('battles')
       .update({
         total_volume_a: volumeA,
