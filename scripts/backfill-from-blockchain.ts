@@ -23,6 +23,9 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const connection = new Connection(RPC_URL, 'confirmed');
 
+// PostgreSQL error codes
+const POSTGRES_UNIQUE_VIOLATION = '23505';
+
 interface BackfillStats {
   onChainBattles: number;
   inDatabase: number;
@@ -44,7 +47,12 @@ function extractBattleId(accountData: Buffer): string | null {
       return null;
     }
     
-    const view = new DataView(accountData.buffer, accountData.byteOffset, accountData.byteLength);
+    // Create a properly aligned DataView to avoid potential memory issues
+    const alignedBuffer = accountData.buffer.slice(
+      accountData.byteOffset, 
+      accountData.byteOffset + accountData.byteLength
+    );
+    const view = new DataView(alignedBuffer);
     const battleId = view.getBigUint64(8, true); // Offset 8, little-endian
     return battleId.toString();
   } catch (error) {
@@ -146,7 +154,7 @@ async function insertMinimalBattle(battleId: string, accountPubkey: PublicKey): 
 
     if (error) {
       // Check if it's a duplicate key error (battle already exists)
-      if (error.code === '23505') {
+      if (error.code === POSTGRES_UNIQUE_VIOLATION) {
         return 'exists';
       }
       
