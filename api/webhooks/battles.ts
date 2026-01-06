@@ -88,13 +88,12 @@ async function handleBattleInsert(payload: any) {
 
   try {
     // Check if battle already exists (prevent duplicates from webhook retries)
-    const { data: existingBattle } = await supabase
+    const { data: existingBattles } = await supabase
       .from('battles')
       .select('battle_id')
-      .eq('battle_id', battleId)
-      .single();
+      .eq('battle_id', battleId);
 
-    if (existingBattle) {
+    if (existingBattles && existingBattles.length > 0) {
       console.log(`⚠️ Battle ${battleId} already exists - skipping duplicate insert`);
       return { 
         success: true, 
