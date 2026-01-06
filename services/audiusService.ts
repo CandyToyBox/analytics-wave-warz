@@ -3,10 +3,11 @@
  * 
  * Fetches track metadata from Audius API to get correct artwork and track information.
  * App Name: WaveWarz Statz App
+ * 
+ * Note: Audius API v1 is public and does not require authentication for read operations.
+ * API keys are provided but not currently required by the public API endpoints.
  */
 
-const AUDIUS_API_KEY = '3bd161ba6d3c5df17065a1c5d061c21f724dd13a';
-const AUDIUS_API_SECRET = 'f17e5188e07dbe166bc0da27e4573b4dcd4e82bd53d3758730d66a259a673831';
 const AUDIUS_API_BASE = 'https://api.audius.co/v1';
 
 interface AudiusTrack {

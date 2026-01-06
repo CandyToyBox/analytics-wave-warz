@@ -296,7 +296,7 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
     // Determine which track this battle represents
     // For song vs song, we need to aggregate both artist1 and artist2 tracks separately
     const extractTrackInfo = (artistName: string | null, musicLink: string | null, profilePic: string | null) => {
-      if (!artistName || !musicLink) return null;
+      if (!musicLink) return null;  // Music link is required to fetch from API or parse URL
 
       // Try to get track info from Audius API first
       const apiInfo = audiusTrackInfo.get(musicLink);
@@ -312,7 +312,7 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       }
 
       // Fallback to URL parsing if API call failed
-      let trackName = artistName;
+      let trackName = artistName || 'Unknown Track';
       let artistHandle = null;
       if (musicLink?.includes('audius.co')) {
         const urlParts = musicLink.split('/');
