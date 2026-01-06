@@ -63,7 +63,7 @@ const DatabaseRow: React.FC<{
               {entry.trackName || entry.audiusHandle || 'Unknown Track'}
             </div>
             <div className="text-xs text-ui-gray">
-              {entry.audiusHandle ? `Audius • ${entry.audiusHandle}` : entry.status || 'Quick Battle'}
+              {entry.audiusHandle || entry.status || 'Quick Battle'}
             </div>
           </div>
         </div>
