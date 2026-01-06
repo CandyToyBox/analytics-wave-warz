@@ -294,9 +294,10 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
         }
-        // Extract artist handle from URL pattern: audius.co/{artistHandle}/{trackSlug}
+        // Extract artist handle from URL pattern: https://audius.co/{artistHandle}/{trackSlug}
+        // Example: https://audius.co/hurric4n3ike/terrorwavez-x-hurric4n3ike -> "hurric4n3ike"
         const match = musicLink.match(/audius\.co\/([^\/]+)\//);
-        if (match) {
+        if (match && match[1]) {
           artistHandle = match[1];
         }
       }
@@ -304,7 +305,7 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
       return {
         trackName,
         musicLink,
-        artistName: artistHandle || artistName,  // Use extracted handle or fall back to track name
+        artistName: artistHandle || artistName,  // Use extracted artist handle from URL, or original data as fallback
         profilePic
       };
     };
