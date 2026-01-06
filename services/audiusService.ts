@@ -79,9 +79,9 @@ export async function fetchAudiusTrackInfo(trackUrl: string): Promise<{
       return null;
     }
 
-    // Search for tracks by the artist handle
-    // This is more reliable than trying to extract track IDs
-    const searchQuery = encodeURIComponent(`${parsed.slug.replace(/-/g, ' ')}`);
+    // Search for tracks by the artist handle and track slug
+    // Use the slug as-is for better matching
+    const searchQuery = encodeURIComponent(parsed.slug.replace(/-/g, ' '));
     const response = await fetch(`${AUDIUS_API_BASE}/tracks/search?query=${searchQuery}&limit=10`, {
       headers: {
         'Accept': 'application/json',
@@ -101,9 +101,11 @@ export async function fetchAudiusTrackInfo(trackUrl: string): Promise<{
     }
 
     // Find the track that matches both the artist handle and track slug
+    // Use exact permalink match for accuracy
     const track = data.data.find(t => 
       t.user.handle.toLowerCase() === parsed.handle.toLowerCase() &&
-      t.permalink.toLowerCase().includes(parsed.slug.toLowerCase())
+      (t.permalink.toLowerCase().endsWith(`/${parsed.slug.toLowerCase()}`) ||
+       t.permalink.toLowerCase().endsWith(`/${parsed.slug.toLowerCase()}/`))
     );
 
     if (!track) {
@@ -118,7 +120,7 @@ export async function fetchAudiusTrackInfo(trackUrl: string): Promise<{
       }
       
       // Use the first track by this artist as fallback
-      console.log('Using fallback track match for:', parsed.handle);
+      console.warn('Using fallback track match for:', parsed.handle, '(exact slug not found)');
       return extractTrackData(trackByArtist);
     }
 
