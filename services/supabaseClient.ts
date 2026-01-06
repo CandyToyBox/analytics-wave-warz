@@ -373,9 +373,12 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
 
       // Always prefer the track's profile pic to ensure correct artwork
       // Since track name is extracted from music link, the profile pic should match
+      // Fall back to battle image_url if track profile pic is not available
       if (track.profilePic) {
         songData.image_url = track.profilePic;
         songData.audius_profile_pic = track.profilePic;
+      } else if (!songData.image_url && battle.image_url) {
+        songData.image_url = battle.image_url;
       }
     };
 
