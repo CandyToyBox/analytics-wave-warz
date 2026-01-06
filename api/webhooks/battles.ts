@@ -13,6 +13,17 @@ const supabase = createClient(
 );
 
 // ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+interface WebhookPayload {
+  type: 'INSERT' | 'UPDATE' | 'DELETE';
+  table: string;
+  record: any;
+  old_record?: any;
+}
+
+// ============================================================================
 // WEBHOOK HANDLER
 // ============================================================================
 
@@ -20,7 +31,7 @@ export async function POST(request: Request) {
   const startTime = Date.now();
   
   try {
-    const payload = await request.json();
+    const payload = await request.json() as WebhookPayload;
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🔍 BATTLE WEBHOOK HANDLER STARTED');
@@ -28,15 +39,37 @@ export async function POST(request: Request) {
     console.log('📥 Webhook Details:');
     console.log(`Type: ${payload.type}`);
     console.log(`Table: ${payload.table}`);
+    console.log(`Source: WaveWarz`);
     
-    // ✅ TABLE FILTERING: Only process battles table
-    // This prevents unnecessary webhook processing for unrelated tables
-    if (payload.table !== 'battles') {
+    // ✅ WEBHOOK SECRET VERIFICATION
+    // Verify webhook secret to ensure requests come from WaveWarz
+    const webhookSecret = request.headers.get('X-Webhook-Secret');
+    const expectedSecret = process.env.WAVEWARZ_WEBHOOK_SECRET;
+
+    if (!expectedSecret) {
+      console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured!');
+    }
+
+    if (expectedSecret && webhookSecret !== expectedSecret) {
+      console.error('❌ Invalid webhook secret');
+      return Response.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    if (expectedSecret) {
+      console.log('✅ Webhook secret verified');
+    }
+    
+    // ✅ TABLE FILTERING: Process both 'battles' and 'v2_battles' tables
+    // WaveWarz uses 'v2_battles' table name
+    if (payload.table !== 'battles' && payload.table !== 'v2_battles') {
       console.log(`⏭️ Skipping webhook trigger for unrelated table: ${payload.table}`);
       return Response.json({ 
         success: true, 
         action: 'skipped_table',
-        reason: `Only 'battles' table is processed`,
+        reason: `Only 'battles' and 'v2_battles' tables are processed`,
         table: payload.table 
       });
     }
@@ -58,10 +91,12 @@ export async function POST(request: Request) {
     }
     
     console.log(`⚠️ Unknown webhook type: ${payload.type}`);
+    console.log(`Payload:`, JSON.stringify(payload, null, 2));
     return Response.json({ success: false, error: 'Unknown webhook type' });
     
   } catch (error: any) {
     console.error('❌ Webhook handler error:', error);
+    console.error('Error details:', error.message);
     return Response.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -80,12 +115,38 @@ async function handleBattleInsert(payload: any) {
   console.log(`✨ NEW BATTLE INSERT: ${battleId}`);
   console.log(`Artists: ${battleData.artist1_name} vs ${battleData.artist2_name}`);
   console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
+  
+  // Log battle type for better tracking
+  const battleType = battleData.is_quick_battle ? 'Quick Battle' : 
+                     battleData.is_community_battle ? 'Community Battle' : 
+                     'Main Battle';
+  console.log(`Battle Type: ${battleType}`);
   console.log(`Quick Battle: ${battleData.is_quick_battle ? 'YES' : 'NO'}`);
   if (battleData.is_quick_battle) {
     console.log(`  Queue ID: ${battleData.quick_battle_queue_id || 'N/A'}`);
   }
 
   try {
+    // ✅ DUPLICATE CHECK: Check if battle already exists
+    // This prevents duplicate inserts if webhook is retried
+    const { data: existingBattle } = await supabase
+      .from('battles')
+      .select('battle_id')
+      .eq('battle_id', battleId)
+      .single();
+
+    if (existingBattle) {
+      console.log(`⚠️ Battle ${battleId} already exists - skipping insert`);
+      return { 
+        success: true, 
+        action: 'skipped',
+        reason: 'Battle already exists',
+        battleId 
+      };
+    }
+
+    console.log(`➕ Inserting new battle ${battleId}...`);
+    
     // ✅ SUPABASE V2: No "returning" option, just .insert()
     const { error } = await supabase
       .from('battles')
@@ -123,6 +184,7 @@ async function handleBattleInsert(payload: any) {
 
     if (error) {
       console.error('❌ INSERT failed:', error);
+      console.error('Battle data:', JSON.stringify(battleData, null, 2));
       return { success: false, error };
     }
 
