@@ -316,6 +316,7 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
       if (!songMap.has(key)) {
         songMap.set(key, {
           track_name: track.trackName,
+          artist_name: track.artistName,  // Store artist name for display
           audius_profile_pic: track.profilePic,
           audius_profile_url: track.profilePic || track.musicLink,
           battles_participated: 0,
@@ -386,6 +387,7 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
   return Array.from(songMap.entries()).map(([key, data]) => ({
     id: key,
     track_name: data.track_name,
+    artist_name: data.artist_name,  // Include artist name for display
     audius_profile_pic: data.audius_profile_pic,
     audius_profile_url: data.audius_profile_url,
     battles_participated: data.battles_participated,
@@ -481,7 +483,7 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
     return {
       id: resolveId(),
       updatedAt: row.updated_at || row.last_scanned_at || row.created_at,
-      audiusHandle: row.audius_handle || extractAudiusHandle(row.artist1_music_link) || extractAudiusHandle(row.artist2_music_link),
+      audiusHandle: row.audius_handle || row.artist_name || extractAudiusHandle(row.artist1_music_link) || extractAudiusHandle(row.artist2_music_link),
       trackName: row.track_name ?? row.artist1_name ?? null,
       // Prefer image_url for artwork (materialized view may have audius_profile_pic as track URL before migration)
       // Fallback to music links as last resort for backwards compatibility with older data
