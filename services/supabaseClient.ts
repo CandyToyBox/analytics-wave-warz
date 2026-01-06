@@ -283,6 +283,7 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
 
       // Extract track name from Audius URL if present
       let trackName = artistName;
+      let artistHandle = null;
       if (musicLink?.includes('audius.co')) {
         const urlParts = musicLink.split('/');
         const trackSlug = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
@@ -293,12 +294,17 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
         }
+        // Extract artist handle from URL pattern: audius.co/{artistHandle}/{trackSlug}
+        const match = musicLink.match(/audius\.co\/([^\/]+)\//);
+        if (match) {
+          artistHandle = match[1];
+        }
       }
 
       return {
         trackName,
         musicLink,
-        artistName,
+        artistName: artistHandle || artistName,  // Use extracted handle or fall back to track name
         profilePic
       };
     };
