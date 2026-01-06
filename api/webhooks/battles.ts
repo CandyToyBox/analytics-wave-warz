@@ -114,7 +114,8 @@ async function handleBattleInsert(payload: any) {
   const battleData = payload.record;
   const battleId = battleData.battle_id;
 
-  console.log(`✨ NEW BATTLE INSERT: ${battleId}`);
+  console.log(`✨ NEW BATTLE from WaveWarz: ${battleId}`);
+  console.log(`Source table: ${payload.table}`);
   console.log(`Artists: ${battleData.artist1_name} vs ${battleData.artist2_name}`);
   console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
   
