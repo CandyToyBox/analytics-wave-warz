@@ -47,11 +47,13 @@ export async function POST(request: Request) {
     const expectedSecret = process.env.WAVEWARZ_WEBHOOK_SECRET;
 
     if (!expectedSecret) {
-      console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured!');
+      console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE!');
+      // In production, consider requiring the secret:
+      // return Response.json({ success: false, error: 'Webhook secret not configured' }, { status: 500 });
     }
 
     if (expectedSecret && webhookSecret !== expectedSecret) {
-      console.error('❌ Invalid webhook secret');
+      console.error('❌ Invalid webhook secret from WaveWarz');
       return Response.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -59,7 +61,7 @@ export async function POST(request: Request) {
     }
 
     if (expectedSecret) {
-      console.log('✅ Webhook secret verified');
+      console.log('✅ Webhook secret verified - request from WaveWarz');
     }
     
     // ✅ TABLE FILTERING: Process both 'battles' and 'v2_battles' tables
@@ -127,8 +129,10 @@ async function handleBattleInsert(payload: any) {
   }
 
   try {
-    // ✅ DUPLICATE CHECK: Check if battle already exists
+    // ✅ DUPLICATE CHECK: Check if battle already exists in OUR database
     // This prevents duplicate inserts if webhook is retried
+    // NOTE: We receive webhooks from WaveWarz's v2_battles table,
+    // but we store the data in our own 'battles' table
     const { data: existingBattle } = await supabase
       .from('battles')
       .select('battle_id')
@@ -148,6 +152,8 @@ async function handleBattleInsert(payload: any) {
     console.log(`➕ Inserting new battle ${battleId}...`);
     
     // ✅ SUPABASE V2: No "returning" option, just .insert()
+    // NOTE: We receive webhooks from WaveWarz's v2_battles table,
+    // but we store the data in our own 'battles' table
     const { error } = await supabase
       .from('battles')
       .insert({
