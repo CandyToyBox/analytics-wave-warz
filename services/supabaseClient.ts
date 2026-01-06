@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats, QuickBattleLeaderboardEntry } from '../types';
+import { batchFetchAudiusTrackInfo } from './audiusService';
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
@@ -243,8 +244,8 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
 
     console.log(`✅ [Quick Battles] Loaded ${battlesData.length} battles from battles table (final fallback)`);
 
-    // Aggregate by song (track name)
-    const aggregatedData = aggregateQuickBattlesBySong(battlesData);
+    // Aggregate by song (track name) - now async with Audius API integration
+    const aggregatedData = await aggregateQuickBattlesBySong(battlesData);
     console.log(`✅ [Quick Battles] Aggregated into ${aggregatedData.length} unique songs`);
     console.log('📊 [Quick Battles] Sample aggregated entry:', aggregatedData[0]);
 
@@ -255,9 +256,25 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
   }
 }
 
-// Aggregate Quick Battles by song (track name)
-function aggregateQuickBattlesBySong(battles: any[]): any[] {
+// Aggregate Quick Battles by song (track name) - now with Audius API integration
+async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
   const songMap = new Map<string, any>();
+
+  // Collect all unique music links to fetch from Audius API
+  const musicLinks = new Set<string>();
+  for (const battle of battles) {
+    if (battle.artist1_music_link?.includes('audius.co')) {
+      musicLinks.add(battle.artist1_music_link);
+    }
+    if (battle.artist2_music_link?.includes('audius.co')) {
+      musicLinks.add(battle.artist2_music_link);
+    }
+  }
+
+  // Fetch track info from Audius API in batch
+  console.log(`🎵 Fetching track info from Audius API for ${musicLinks.size} unique tracks...`);
+  const audiusTrackInfo = await batchFetchAudiusTrackInfo(Array.from(musicLinks));
+  console.log(`✅ Fetched ${audiusTrackInfo.size} tracks from Audius API`);
 
   for (const battle of battles) {
     // Skip battles without both music links (not true Quick Battles - song vs song)
@@ -279,9 +296,22 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
     // Determine which track this battle represents
     // For song vs song, we need to aggregate both artist1 and artist2 tracks separately
     const extractTrackInfo = (artistName: string | null, musicLink: string | null, profilePic: string | null) => {
-      if (!artistName) return null;
+      if (!artistName || !musicLink) return null;
 
-      // Extract track name from Audius URL if present
+      // Try to get track info from Audius API first
+      const apiInfo = audiusTrackInfo.get(musicLink);
+      
+      if (apiInfo) {
+        // Use Audius API data - this is the most accurate
+        return {
+          trackName: apiInfo.trackName,
+          musicLink,
+          artistName: apiInfo.artistHandle,
+          profilePic: apiInfo.artwork || apiInfo.profilePicture || profilePic  // Prefer track artwork, then artist profile pic
+        };
+      }
+
+      // Fallback to URL parsing if API call failed
       let trackName = artistName;
       let artistHandle = null;
       if (musicLink?.includes('audius.co')) {
