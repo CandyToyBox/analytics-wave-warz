@@ -371,11 +371,11 @@ function aggregateQuickBattlesBySong(battles: any[]): any[] {
         songData.updated_at = battle.last_scanned_at;
       }
 
-      // Keep best artwork (prefer per-track images over battle-level images)
-      if (track.profilePic && !songData.image_url) {
+      // Always prefer the track's profile pic to ensure correct artwork
+      // Since track name is extracted from music link, the profile pic should match
+      if (track.profilePic) {
         songData.image_url = track.profilePic;
-      } else if (battle.image_url && !songData.image_url) {
-        songData.image_url = battle.image_url;
+        songData.audius_profile_pic = track.profilePic;
       }
     };
 
