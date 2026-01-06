@@ -29,14 +29,14 @@ export async function POST(request: Request) {
     console.log(`Type: ${payload.type}`);
     console.log(`Table: ${payload.table}`);
     
-    // ✅ TABLE FILTERING: Only process battles table
+    // ✅ TABLE FILTERING: Only process battles and v2_battles tables
     // This prevents unnecessary webhook processing for unrelated tables
-    if (payload.table !== 'battles') {
+    if (payload.table !== 'battles' && payload.table !== 'v2_battles') {
       console.log(`⏭️ Skipping webhook trigger for unrelated table: ${payload.table}`);
       return Response.json({ 
         success: true, 
         action: 'skipped_table',
-        reason: `Only 'battles' table is processed`,
+        reason: `Only 'battles' and 'v2_battles' tables are processed`,
         table: payload.table 
       });
     }
@@ -77,7 +77,8 @@ async function handleBattleInsert(payload: any) {
   const battleData = payload.record;
   const battleId = battleData.battle_id;
 
-  console.log(`✨ NEW BATTLE INSERT: ${battleId}`);
+  console.log(`✨ NEW BATTLE from WaveWarz: ${battleId}`);
+  console.log(`Source table: ${payload.table}`);
   console.log(`Artists: ${battleData.artist1_name} vs ${battleData.artist2_name}`);
   console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
   console.log(`Quick Battle: ${battleData.is_quick_battle ? 'YES' : 'NO'}`);
@@ -86,6 +87,23 @@ async function handleBattleInsert(payload: any) {
   }
 
   try {
+    // Check if battle already exists (prevent duplicates from webhook retries)
+    const { data: existingBattle } = await supabase
+      .from('battles')
+      .select('battle_id')
+      .eq('battle_id', battleId)
+      .single();
+
+    if (existingBattle) {
+      console.log(`⚠️ Battle ${battleId} already exists - skipping duplicate insert`);
+      return { 
+        success: true, 
+        action: 'skipped_duplicate',
+        reason: 'Battle already exists',
+        battleId 
+      };
+    }
+
     // ✅ SUPABASE V2: No "returning" option, just .insert()
     const { error } = await supabase
       .from('battles')
