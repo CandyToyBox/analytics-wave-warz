@@ -115,13 +115,12 @@ export async function fetchAudiusTrackInfo(trackUrl: string): Promise<{
       );
       
       if (!trackByArtist) {
-        // Track not found in Audius - may have been deleted or made private
-        console.log('No matching track found for artist:', parsed.handle, 'slug:', parsed.slug);
+        console.warn('No matching track found for artist:', parsed.handle, 'slug:', parsed.slug);
         return null;
       }
       
       // Use the first track by this artist as fallback
-      console.log('Using fallback track match for:', parsed.handle, '(exact slug not found)');
+      console.warn('Using fallback track match for:', parsed.handle, '(exact slug not found)');
       return extractTrackData(trackByArtist);
     }
 

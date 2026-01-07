@@ -132,10 +132,9 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
     // 1) Try the working "_old" view first (properly filters Quick Battles and aggregates by song)
-    // Note: Query base view directly to get image_url for album artwork
     const { data: viewData, error: viewError } = await supabase
-      .from('v_quick_battle_leaderboard_public')
-      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, created_at, updated_at, image_url')
+      .from('v_quick_battle_leaderboard_public_old')
+      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, total_trades, unique_traders, first_battle_date, last_battle_date, updated_at')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false });
 
@@ -144,7 +143,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     }
 
     if (!viewError && viewData && viewData.length > 0) {
-      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from v_quick_battle_leaderboard_public`);
+      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from v_quick_battle_leaderboard_public_old`);
       console.log('📊 [Quick Battles] Sample entry:', viewData[0]);
       console.log('🔢 [Quick Battles] Top 3 volumes:',
         viewData.slice(0, 3).map(e => ({
@@ -167,34 +166,6 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         console.warn('⚠️ [Quick Battles] View has entries but all zeros - falling back to battles table');
         // Fall through to battles table query
       } else {
-        // Fetch fresh artwork from Audius API for reliable display
-        const musicLinks = viewData
-          .map(e => e.audius_profile_url)
-          .filter((url): url is string => !!url && url.includes('audius.co'));
-        
-        if (musicLinks.length > 0) {
-          console.log(`🎵 Fetching fresh artwork from Audius API for ${musicLinks.length} tracks...`);
-          const audiusTrackInfo = await batchFetchAudiusTrackInfo(musicLinks);
-          console.log(`✅ Fetched ${audiusTrackInfo.size} tracks from Audius API`);
-          
-          // Enrich view data with fresh Audius artwork
-          viewData = viewData.map(entry => {
-            const musicLink = entry.audius_profile_url;
-            if (musicLink && audiusTrackInfo.has(musicLink)) {
-              const apiInfo = audiusTrackInfo.get(musicLink)!;
-              return {
-                ...entry,
-                // Use fresh API artwork, fallback to cached image_url
-                image_url: apiInfo.artwork || entry.image_url,
-                // Update track name if API has better info
-                track_name: apiInfo.trackName || entry.track_name,
-                audius_handle: apiInfo.artistHandle || entry.audius_handle
-              };
-            }
-            return entry;
-          });
-        }
-        
         const mapped = mapQuickBattleLeaderboardData(viewData);
         console.log('✅ [Quick Battles] Mapped data structure verified');
         console.log('🔍 [Quick Battles] First mapped entry:', mapped[0]);
