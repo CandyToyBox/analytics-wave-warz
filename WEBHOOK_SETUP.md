@@ -324,6 +324,11 @@ Always use HTTPS in production. Never expose webhook endpoints over HTTP.
    ```bash
    vercel --prod
    ```
+   
+   Or use the newer syntax:
+   ```bash
+   vercel deploy --prod
+   ```
 
 3. Set environment variables in Vercel Dashboard (see `VERCEL_ENV_SETUP.md`)
 
