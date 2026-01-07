@@ -301,7 +301,8 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       songData.battles_participated += 1;
       songData.battle_ids.push(battle.battle_id);
       
-      if (battle.winner_decided) {
+      // Only count wins/losses when winner is actually decided and determined
+      if (battle.winner_decided && battle.winner_artist_a !== null) {
         if (isWinner) {
           songData.wins += 1;
         } else {
