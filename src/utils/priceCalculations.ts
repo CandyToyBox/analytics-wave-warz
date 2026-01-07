@@ -15,13 +15,6 @@ const SOL_PRICE_CACHE_MS = Number.isFinite(parsedCacheMs) ? parsedCacheMs! : 300
 const COINGECKO_API = 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd';
 // Fallback SOL price when API fails (last validated Q4 2024 average)
 const DEFAULT_SOL_PRICE = 200;
-const MIN_AUDIUS_ID_LENGTH = 5;
-const AUDIUS_DISCOVERY_NODES = [
-  'https://discoveryprovider.audius.co',
-  'https://discoveryprovider2.audius.co',
-  'https://discoveryprovider3.audius.co',
-];
-let audiusNodeIndex = 0;
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -64,10 +57,8 @@ export interface BattleWithMetrics extends Battle {
   total_spotify_streams: number;
   sol_price_usd: number;
   calculated_at: string;
-  
-  // Audius artwork (extracted from links)
-  artist1_artwork_url: string | null;
-  artist2_artwork_url: string | null;
+  // NOTE: Artwork URLs are now handled by services/audiusService.ts
+  // and stored in the database. They are not part of metrics calculation.
 }
 
 export interface ArtistStats {
@@ -198,41 +189,9 @@ export function filterCommunityBattles(battles: Battle[]): Battle[] {
 // ============================================================================
 // AUDIUS INTEGRATION
 // ============================================================================
-
-/**
- * Extract Audius track ID from music link
- * Example: https://audius.co/artist/track-name-abc123 → abc123
- */
-export function extractAudiusTrackId(audiusLink: string | null): string | null {
-  if (!audiusLink) return null;
-  
-  try {
-    // Audius links typically end with the track ID
-    const parts = audiusLink.split('/');
-    const lastPart = parts[parts.length - 1];
-    // Extract ID (usually after last hyphen or the whole thing)
-    // Audius IDs are alphanumeric, typically >= MIN_AUDIUS_ID_LENGTH chars
-    const match = lastPart.match(new RegExp(`([a-zA-Z0-9]{${MIN_AUDIUS_ID_LENGTH},})$`));
-    return match ? match[1] : null;
-  } catch (error) {
-    console.error('Failed to extract Audius track ID:', error);
-    return null;
-  }
-}
-
-/**
- * Get Audius artwork URL from track link
- * Audius provides artwork at: https://creatornode.audius.co/content/{track_id}/480x480.jpg
- */
-export function getAudiusArtworkUrl(audiusLink: string | null, size: number = 480): string | null {
-  const trackId = extractAudiusTrackId(audiusLink);
-  if (!trackId) return null;
-  
-  // Audius discovery nodes for artwork
-  const discoveryNode = AUDIUS_DISCOVERY_NODES[audiusNodeIndex % AUDIUS_DISCOVERY_NODES.length];
-  audiusNodeIndex++;
-  return `${discoveryNode}/content/${trackId}/${size}x${size}.jpg`;
-}
+// NOTE: Artwork fetching has been moved to services/audiusService.ts
+// which uses the proper Audius API instead of constructing URLs from track IDs.
+// The API provides accurate artwork URLs directly from Audius metadata.
 
 // ============================================================================
 // CONVERSION FUNCTIONS
@@ -278,8 +237,10 @@ export function formatPercentage(value: number): string {
 }
 
 // ============================================================================
-// BATTLE ENRICHMENT WITH AUDIUS ARTWORK
+// BATTLE ENRICHMENT WITH METRICS
 // ============================================================================
+// NOTE: Artwork URLs are now fetched by services/audiusService.ts and stored
+// in the database. This function only adds financial metrics.
 
 export async function enrichBattleWithMetrics(battle: Battle): Promise<BattleWithMetrics> {
   const solPrice = await getCurrentSolPrice();
@@ -298,10 +259,6 @@ export async function enrichBattleWithMetrics(battle: Battle): Promise<BattleWit
     total_spotify_streams: usdToSpotifyStreams(totalTvlUsd),
     sol_price_usd: solPrice,
     calculated_at: new Date().toISOString(),
-    
-    // ✅ Extract Audius artwork URLs
-    artist1_artwork_url: getAudiusArtworkUrl(battle.artist1_music_link),
-    artist2_artwork_url: getAudiusArtworkUrl(battle.artist2_music_link),
   };
 }
 
@@ -326,8 +283,6 @@ export async function enrichBattlesWithMetrics(battles: Battle[]): Promise<Battl
       total_spotify_streams: usdToSpotifyStreams(totalTvlUsd),
       sol_price_usd: solPrice,
       calculated_at: calculatedAt,
-      artist1_artwork_url: getAudiusArtworkUrl(battle.artist1_music_link),
-      artist2_artwork_url: getAudiusArtworkUrl(battle.artist2_music_link),
     };
   });
 }
