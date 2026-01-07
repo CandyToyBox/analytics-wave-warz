@@ -64,14 +64,19 @@ export async function POST(request: Request) {
       console.log('✅ Webhook secret verified - request from WaveWarz');
     }
     
-    // ✅ TABLE FILTERING: Process both 'battles' and 'v2_battles' tables
-    // WaveWarz uses 'v2_battles' table name
-    if (payload.table !== 'battles' && payload.table !== 'v2_battles') {
-      console.log(`⏭️ Skipping webhook trigger for unrelated table: ${payload.table}`);
+    // ✅ TABLE FILTERING: Process ONLY 'v2_battles' table (WaveWarz's source table)
+    // IMPORTANT: We only process webhooks from WaveWarz's v2_battles table.
+    // We do NOT process webhooks from our own 'battles' table to prevent duplicate triggers.
+    // When v2_battles receives an insert, we copy it to our 'battles' table.
+    // If we also processed 'battles' webhooks, we'd get a second webhook for the same battle.
+    if (payload.table !== 'v2_battles') {
+      console.log(`⏭️ Skipping webhook trigger for table: ${payload.table}`);
+      console.log(`   Reason: Only 'v2_battles' table (WaveWarz source) is processed`);
+      console.log(`   Our 'battles' table is the destination, not a webhook source`);
       return Response.json({ 
         success: true, 
         action: 'skipped_table',
-        reason: `Only 'battles' and 'v2_battles' tables are processed`,
+        reason: `Only 'v2_battles' table is processed to prevent duplicate triggers`,
         table: payload.table 
       });
     }
@@ -114,8 +119,7 @@ async function handleBattleInsert(payload: any) {
   const battleData = payload.record;
   const battleId = battleData.battle_id;
 
-  console.log(`✨ NEW BATTLE from WaveWarz: ${battleId}`);
-  console.log(`Source table: ${payload.table}`);
+  console.log(`✨ NEW BATTLE from WaveWarz v2_battles: ${battleId}`);
   console.log(`Artists: ${battleData.artist1_name} vs ${battleData.artist2_name}`);
   console.log(`Duration: ${battleData.battle_duration}s (${Math.round(battleData.battle_duration / 60)} min)`);
   
