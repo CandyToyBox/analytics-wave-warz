@@ -290,7 +290,7 @@ Add secret validation to your webhook handler:
 
 ```typescript
 // In api/webhooks/battles.ts
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+const WEBHOOK_SECRET = process.env.WAVEWARZ_WEBHOOK_SECRET;
 
 export async function battleWebhookHandler(req: Request, res: Response) {
   const providedSecret = req.headers['x-webhook-secret'];
