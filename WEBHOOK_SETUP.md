@@ -1,20 +1,26 @@
-# WaveWarz Farcaster Webhooks Setup Guide
+# WaveWarz Webhooks Setup Guide
 
-This guide will help you configure Supabase webhooks to power your WaveWarz Farcaster mini app with real-time battle updates.
+This guide explains how to configure your webhook endpoint to receive battle updates from WaveWarz.
 
 ## 🎯 Overview
 
+**IMPORTANT: Webhook Architecture**
+- ⚠️ Webhooks come from **WaveWarz's external `v2_battles` table**, not your local Supabase
+- ⚠️ Do NOT configure webhooks in your Supabase Dashboard on the local `battles` table
+- ✅ Your local `battles` table is the **destination** where data is stored after receiving webhooks
+- ✅ You provide your webhook URL to WaveWarz for integration
+
 The webhook system enables:
-- **Real-time battle notifications** when new battles are created
-- **Automatic Farcaster Frame updates** when battle stats change
+- **Real-time battle notifications** when new battles are created in WaveWarz
+- **Automatic data synchronization** from WaveWarz to your analytics database
 - **Event-driven architecture** for scalable analytics
-- **Live stats** for the mini app
+- **Live battle stats** for your application
 
 ## 📋 Prerequisites
 
-- ✅ Supabase project with webhooks enabled
-- ✅ Deployed API server (or ngrok for local testing)
-- ✅ Database tables: `battles`, `trader_snapshots`, `artist_leaderboard`, `trader_leaderboard`
+- ✅ Deployed webhook endpoint (Vercel recommended)
+- ✅ Supabase project with `battles` table for storing received data
+- ✅ Webhook URL to provide to WaveWarz team
 
 ## 🚀 Quick Start
 
@@ -68,44 +74,55 @@ ngrok http 3001
 
 Copy the HTTPS URL (e.g., `https://abc123.ngrok.io`)
 
-## 🔗 Supabase Webhook Configuration
+## 🔗 Webhook Integration with WaveWarz
 
-### Webhook 1: New Battle Created
+### ⚠️ Critical: Do NOT Configure Webhooks in Your Supabase Dashboard
 
-**Purpose:** Trigger when a new battle is inserted into the database
+**Common Mistake:**
+Users often try to configure webhooks in their own Supabase Dashboard on the local `battles` table. This will NOT work because:
 
-1. Open your Supabase Dashboard
-2. Navigate to **Database** → **Webhooks**
-3. Click **Create a new webhook**
-4. Fill in the form:
+1. The webhook handler **only accepts webhooks from WaveWarz's `v2_battles` table**
+2. Your local `battles` table is the **destination**, not a webhook source
+3. Webhooks configured on your local `battles` table will be **silently skipped** by the handler
 
-**General Settings:**
-- **Name:** `new-battle-webhook` (no spaces!)
-- **Table:** `battles`
-- **Events:** ✅ Insert
-- **Type of webhook:** HTTP Request
+### Correct Setup Process
 
-**HTTP Request Settings:**
-- **Method:** POST
-- **URL:** `https://your-domain.com/api/webhooks/battles`
-  - For local testing: `https://abc123.ngrok.io/api/webhooks/battles`
-- **HTTP Headers:** (Optional)
-  - Key: `Content-Type`, Value: `application/json`
-  - Key: `X-Webhook-Secret`, Value: `your-secret-here`
+**Step 1: Deploy Your Webhook Endpoint**
 
-**HTTP Parameters:**
-- Leave empty for now
+1. Deploy your application to Vercel (or another hosting provider)
+2. Ensure your endpoint is accessible at: `https://your-domain.vercel.app/api/webhooks/battles`
+3. Verify the endpoint is live (should return 405 for GET requests)
 
-5. Click **Create webhook**
+**Step 2: Configure Environment Variables**
 
-### Webhook 2: Battle Stats Updated (Optional)
+Set these in Vercel Dashboard → Settings → Environment Variables:
 
-For real-time updates when pool balances change:
+```env
+# Required for webhook handler
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_KEY=your-anon-key
 
-- **Name:** `battle-update-webhook`
-- **Table:** `battles`
-- **Events:** ✅ Update
-- **URL:** Same as above
+# Recommended for security
+WAVEWARZ_WEBHOOK_SECRET=your-generated-secret
+```
+
+See `VERCEL_ENV_SETUP.md` for detailed instructions.
+
+**Step 3: Provide Your Webhook URL to WaveWarz**
+
+Contact the WaveWarz team and provide:
+- Your webhook URL: `https://your-domain.vercel.app/api/webhooks/battles`
+- Your webhook secret (if using `WAVEWARZ_WEBHOOK_SECRET`)
+
+They will configure their `v2_battles` table to send webhooks to your endpoint.
+
+**Step 4: Verify Webhook Reception**
+
+After WaveWarz configures your webhook:
+1. Monitor Vercel logs: `vercel logs --follow`
+2. Watch for webhook events from `v2_battles` table
+3. Verify battles are being inserted into your local `battles` table
 
 ## 🧪 Testing Your Webhook
 
@@ -125,21 +142,24 @@ Expected response:
 
 ### Test 2: Manual Webhook Test
 
-Send a test webhook payload:
+⚠️ **Important:** Use `v2_battles` as the table name (not `battles`)
 
 ```bash
-curl -X POST http://localhost:3001/api/webhooks/battles \
+curl -X POST https://your-domain.vercel.app/api/webhooks/battles \
   -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: your-secret-here" \
   -d '{
     "type": "INSERT",
-    "table": "battles",
+    "table": "v2_battles",
     "record": {
       "battle_id": "123456",
       "artist1_name": "Test Artist A",
       "artist2_name": "Test Artist B",
       "status": "active",
       "artist1_pool": 10.5,
-      "artist2_pool": 8.3
+      "artist2_pool": 8.3,
+      "battle_duration": 3600,
+      "is_quick_battle": false
     }
   }'
 ```
@@ -148,40 +168,29 @@ Expected response:
 ```json
 {
   "success": true,
-  "message": "Webhook processed",
-  "type": "INSERT"
+  "action": "inserted",
+  "battleId": "123456"
 }
 ```
 
-### Test 3: Trigger from Supabase
+**What happens:**
+1. Webhook receives data from `v2_battles` table
+2. Handler inserts battle into your local `battles` table
+3. Returns success response
 
-Insert a test battle in Supabase SQL Editor:
+### Test 3: Verify Battle Was Stored
+
+Check your Supabase `battles` table:
 
 ```sql
-INSERT INTO battles (
-  battle_id,
-  artist1_name,
-  artist2_name,
-  status,
-  artist1_pool,
-  artist2_pool,
-  created_at
-) VALUES (
-  '999999',
-  'Webhook Test A',
-  'Webhook Test B',
-  'active',
-  0,
-  0,
-  NOW()
-);
+SELECT battle_id, artist1_name, artist2_name, created_at
+FROM battles
+WHERE battle_id = '123456'
+ORDER BY created_at DESC
+LIMIT 1;
 ```
 
-Check your API server logs for:
-```
-📥 Received webhook: { type: 'INSERT', table: 'battles', battleId: '999999' }
-🆕 New battle created: ...
-```
+You should see the battle data that was sent via webhook.
 
 ## 🖼️ Farcaster Frame Endpoints
 
@@ -214,12 +223,14 @@ Your API server provides these endpoints for Farcaster Frames:
 
 ## 📊 Webhook Payload Reference
 
-### INSERT Event (New Battle)
+### INSERT Event (New Battle from WaveWarz)
+
+⚠️ **Note:** Table name is `v2_battles` (WaveWarz's table), not `battles` (your table)
 
 ```json
 {
   "type": "INSERT",
-  "table": "battles",
+  "table": "v2_battles",
   "schema": "public",
   "record": {
     "id": "uuid-here",
@@ -234,7 +245,9 @@ Your API server provides these endpoints for Farcaster Frames:
     "artist2_pool": 0,
     "image_url": "https://...",
     "battle_duration": 3600,
-    "winner_decided": false
+    "winner_decided": false,
+    "is_quick_battle": false,
+    "quick_battle_queue_id": null
   }
 }
 ```
@@ -244,22 +257,30 @@ Your API server provides these endpoints for Farcaster Frames:
 ```json
 {
   "type": "UPDATE",
-  "table": "battles",
+  "table": "v2_battles",
   "schema": "public",
   "record": {
     "battle_id": "174523",
     "artist1_pool": 15.75,
     "artist2_pool": 12.30,
+    "winner_decided": true,
+    "winner_artist_a": true,
     ...
   },
   "old_record": {
     "battle_id": "174523",
     "artist1_pool": 10.50,
     "artist2_pool": 8.30,
+    "winner_decided": false,
     ...
   }
 }
 ```
+
+**Handler Behavior:**
+- INSERT: Creates new battle in your local `battles` table
+- UPDATE: Only processes when `winner_decided=true` (final results)
+- Active battle updates are skipped to reduce API calls
 
 ## 🔒 Security Best Practices
 
@@ -301,12 +322,14 @@ Always use HTTPS in production. Never expose webhook endpoints over HTTP.
 
 2. Deploy:
    ```bash
-   vercel
+   vercel --prod
    ```
 
-3. Set environment variables in Vercel Dashboard
+3. Set environment variables in Vercel Dashboard (see `VERCEL_ENV_SETUP.md`)
 
-4. Update Supabase webhook URL to your Vercel URL
+4. **Provide your webhook URL to WaveWarz team:**
+   - URL: `https://your-domain.vercel.app/api/webhooks/battles`
+   - Secret: Your `WAVEWARZ_WEBHOOK_SECRET` value (if using)
 
 ### Option 2: Railway
 
@@ -326,11 +349,35 @@ npm run start:api
 
 ### Webhook Not Triggering
 
-1. **Check webhook is enabled** in Supabase Dashboard
-2. **Verify URL is correct** and accessible
-3. **Check Supabase logs** in Dashboard → Database → Webhooks
-4. **Test with curl** to verify endpoint works
-5. **Check your server logs** for errors
+**First, verify the architecture:**
+- ❌ Did you configure webhooks in YOUR Supabase Dashboard? (This won't work)
+- ✅ Did you provide your webhook URL to WaveWarz? (This is required)
+
+**If webhook URL was provided to WaveWarz:**
+1. **Check Vercel logs** for incoming webhook requests
+2. **Verify environment variables** are set correctly (especially `SUPABASE_SERVICE_ROLE_KEY`)
+3. **Test with curl** using `table: "v2_battles"` (not `"battles"`)
+4. **Check your endpoint is accessible** (should return 405 for GET requests)
+
+### Webhooks Returning 200 OK But No Data
+
+**Symptom:** Webhook returns success but battles aren't appearing in database
+
+**Cause:** You configured webhooks on the local `battles` table instead of receiving from WaveWarz
+
+**Solution:**
+1. Remove any webhooks configured in your Supabase Dashboard
+2. Provide your webhook URL to WaveWarz team
+3. They will configure webhooks on their `v2_battles` table
+4. Your handler will receive the webhooks and store data in your `battles` table
+
+### Webhooks Being Skipped
+
+**Log message:** `⏭️ Skipping webhook trigger for table: battles`
+
+**Cause:** Webhook is coming from the wrong table (local `battles` instead of WaveWarz's `v2_battles`)
+
+**Solution:** See "Webhooks Returning 200 OK But No Data" above
 
 ### Frame Not Displaying in Farcaster
 
