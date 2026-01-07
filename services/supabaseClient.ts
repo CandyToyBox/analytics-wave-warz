@@ -167,6 +167,34 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
         console.warn('⚠️ [Quick Battles] View has entries but all zeros - falling back to battles table');
         // Fall through to battles table query
       } else {
+        // Fetch fresh artwork from Audius API for reliable display
+        const musicLinks = viewData
+          .map(e => e.audius_profile_url)
+          .filter((url): url is string => !!url && url.includes('audius.co'));
+        
+        if (musicLinks.length > 0) {
+          console.log(`🎵 Fetching fresh artwork from Audius API for ${musicLinks.length} tracks...`);
+          const audiusTrackInfo = await batchFetchAudiusTrackInfo(musicLinks);
+          console.log(`✅ Fetched ${audiusTrackInfo.size} tracks from Audius API`);
+          
+          // Enrich view data with fresh Audius artwork
+          viewData = viewData.map(entry => {
+            const musicLink = entry.audius_profile_url;
+            if (musicLink && audiusTrackInfo.has(musicLink)) {
+              const apiInfo = audiusTrackInfo.get(musicLink)!;
+              return {
+                ...entry,
+                // Use fresh API artwork, fallback to cached image_url
+                image_url: apiInfo.artwork || entry.image_url,
+                // Update track name if API has better info
+                track_name: apiInfo.trackName || entry.track_name,
+                audius_handle: apiInfo.artistHandle || entry.audius_handle
+              };
+            }
+            return entry;
+          });
+        }
+        
         const mapped = mapQuickBattleLeaderboardData(viewData);
         console.log('✅ [Quick Battles] Mapped data structure verified');
         console.log('🔍 [Quick Battles] First mapped entry:', mapped[0]);
