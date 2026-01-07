@@ -1,5 +1,71 @@
 # Data Integrity Fix - Deployment Guide
 
+## ⚠️ CRITICAL: Required Environment Variables
+
+Before deploying, ensure these environment variables are set in Vercel:
+
+### 1. **SUPABASE_SERVICE_ROLE_KEY** (REQUIRED)
+**Where to find it:**
+1. Go to your Supabase Dashboard
+2. Navigate to: Settings → API
+3. Find "service_role" key (under "Project API keys")
+4. Copy the secret key (starts with `eyJ...`)
+
+**Why it's needed:**
+- Required for `/api/webhooks/battles` (webhook handler)
+- Required for `/api/update-battle-volumes` (battle stats updates)
+- Required for `/api/scan-quick-battles` (quick battle scanning)
+- This key bypasses Row Level Security (RLS) for admin operations
+
+**🔒 SECURITY WARNING:**
+- This key has FULL DATABASE ACCESS - never expose to frontend
+- Only use in server-side API endpoints
+- Never commit to git or include in client-side code
+
+**How to set in Vercel:**
+1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+2. Add new variable:
+   - **Name**: `SUPABASE_SERVICE_ROLE_KEY`
+   - **Value**: `<your-service-role-key>`
+   - **Environments**: Production, Preview, Development (all checked)
+3. Click "Save"
+4. Redeploy your application
+
+### 2. **BATTLE_UPDATE_API_KEY** and **VITE_BATTLE_UPDATE_API_KEY** (REQUIRED)
+Generate a secure key:
+```bash
+openssl rand -base64 32
+```
+
+Add BOTH to Vercel (use the SAME generated value for both):
+- **Name**: `BATTLE_UPDATE_API_KEY` (server-side)
+- **Name**: `VITE_BATTLE_UPDATE_API_KEY` (client-side)
+- **Value**: `<your-generated-key>`
+
+### 3. **WAVEWARZ_WEBHOOK_SECRET** (RECOMMENDED)
+Generate and set this to secure your webhook endpoint:
+```bash
+openssl rand -base64 32
+```
+
+Add to Vercel:
+- **Name**: `WAVEWARZ_WEBHOOK_SECRET`
+- **Value**: `<your-generated-secret>`
+
+**Note:** Also provide this secret to WaveWarz so they can include it in webhook requests.
+
+### 4. **ADMIN_SECRET** (OPTIONAL - for admin endpoints)
+For admin scan endpoint access:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Add to Vercel:
+- **Name**: `ADMIN_SECRET`
+- **Value**: `<your-generated-secret>`
+
+---
+
 ## Quick Start
 
 This guide helps you deploy the admin scan endpoint to fix zero values in artist and battle statistics.
