@@ -132,9 +132,10 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
     // 1) Try the working "_old" view first (properly filters Quick Battles and aggregates by song)
+    // Note: Query base view directly to get image_url for album artwork
     const { data: viewData, error: viewError } = await supabase
-      .from('v_quick_battle_leaderboard_public_old')
-      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, total_trades, unique_traders, first_battle_date, last_battle_date')
+      .from('v_quick_battle_leaderboard_public')
+      .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, total_trades, unique_traders, created_at, updated_at, image_url')
       .order('total_volume_generated', { ascending: false })
       .order('wins', { ascending: false });
 
@@ -143,7 +144,7 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     }
 
     if (!viewError && viewData && viewData.length > 0) {
-      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from v_quick_battle_leaderboard_public_old`);
+      console.log(`✅ [Quick Battles] Loaded ${viewData.length} entries from v_quick_battle_leaderboard_public`);
       console.log('📊 [Quick Battles] Sample entry:', viewData[0]);
       console.log('🔢 [Quick Battles] Top 3 volumes:',
         viewData.slice(0, 3).map(e => ({
