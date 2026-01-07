@@ -132,9 +132,6 @@ export async function fetchQuickBattleLeaderboardFromDB(): Promise<QuickBattleLe
     console.log('🔍 [Quick Battles] Fetching leaderboard from database...');
 
     // 1) Try the working "_old" view first (properly filters Quick Battles and aggregates by song)
-    // Note: Removed 'updated_at' from select as it may not exist in all deployments.
-    // In the view definition, both 'last_battle_date' and 'updated_at' point to the same timestamp (updated_at as last_battle_date).
-    // The mapping function already has fallback: row.updated_at || row.last_scanned_at || row.created_at
     const { data: viewData, error: viewError } = await supabase
       .from('v_quick_battle_leaderboard_public_old')
       .select('audius_handle, track_name, audius_profile_pic, audius_profile_url, battles_participated, wins, losses, win_rate, total_volume_generated, avg_volume_per_battle, total_trades, unique_traders, first_battle_date, last_battle_date')
