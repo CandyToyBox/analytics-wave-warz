@@ -36,7 +36,7 @@ Copy `.env.example` to `.env` and fill in your values:
 
 ```env
 # Your Supabase credentials
-VITE_SUPABASE_URL=https://gshwqoplsxgqbdkssoit.supabase.co
+VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_KEY=your-anon-key
 
 # API Server
@@ -375,7 +375,9 @@ npm run start:api
 
 **Log message:** `⏭️ Skipping webhook trigger for table: battles`
 
-**Cause:** Webhook is coming from the wrong table (local `battles` instead of WaveWarz's `v2_battles`)
+**What this means:** The webhook handler received a webhook from your local `battles` table, but it only processes webhooks from WaveWarz's `v2_battles` table.
+
+**Cause:** You configured webhooks in your own Supabase Dashboard on the local `battles` table (this doesn't work with the current architecture)
 
 **Solution:** See "Webhooks Returning 200 OK But No Data" above
 
