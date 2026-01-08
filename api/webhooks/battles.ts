@@ -39,7 +39,48 @@ export async function POST(request: Request) {
     console.log('📥 Webhook Details:');
     console.log(`Type: ${payload.type}`);
     console.log(`Table: ${payload.table}`);
-    console.log(`Source: WaveWarz`);
+    
+    // ✅ TABLE FILTERING: Process ONLY 'v2_battles' table (WaveWarz's source table)
+    // IMPORTANT: We only process webhooks from WaveWarz's v2_battles table.
+    // We do NOT process webhooks from our own 'battles' table to prevent duplicate triggers.
+    // When v2_battles receives an insert, we copy it to our 'battles' table.
+    // If we also processed 'battles' webhooks, we'd get a second webhook for the same battle.
+    //
+    // ⚠️ COMMON MISCONFIGURATION: If you're seeing this message repeatedly, it means
+    // you've configured webhooks in YOUR Supabase Dashboard on the local 'battles' table.
+    // This is incorrect! Webhooks should only come from WaveWarz's 'v2_battles' table.
+    // Solution: Remove the webhook from your Supabase Dashboard and provide your webhook
+    // URL to the WaveWarz team instead.
+    if (payload.table !== 'v2_battles') {
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.warn('⚠️ WEBHOOK MISCONFIGURATION DETECTED');
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.warn(`❌ Received webhook for table: '${payload.table}'`);
+      console.warn(`✅ Expected table: 'v2_battles' (WaveWarz source)`);
+      console.warn('');
+      console.warn('📋 This webhook is being IGNORED because:');
+      console.warn('   • Webhooks must come from WaveWarz\'s v2_battles table');
+      console.warn('   • Your local \'battles\' table is the destination, not a source');
+      console.warn('   • Processing local table webhooks would cause duplicate entries');
+      console.warn('');
+      console.warn('🔧 To fix this misconfiguration:');
+      console.warn('   1. Go to your Supabase Dashboard');
+      console.warn('   2. Navigate to Database → Webhooks');
+      console.warn('   3. Delete any webhooks configured on the \'battles\' table');
+      console.warn('   4. Contact WaveWarz team to configure webhooks from their v2_battles table');
+      console.warn('   5. See WEBHOOK_SETUP.md for detailed instructions');
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      return Response.json({ 
+        success: true, 
+        action: 'skipped_table',
+        reason: `Only 'v2_battles' table is processed to prevent duplicate triggers`,
+        table: payload.table,
+        message: 'Webhook misconfiguration detected. Remove webhooks from your local Supabase battles table.'
+      });
+    }
+    
+    console.log(`Source: WaveWarz v2_battles`);
     
     // ✅ WEBHOOK SECRET VERIFICATION
     // Verify webhook secret to ensure requests come from WaveWarz
@@ -70,23 +111,6 @@ export async function POST(request: Request) {
 
     if (expectedSecret) {
       console.log('✅ Webhook secret verified - request from WaveWarz');
-    }
-    
-    // ✅ TABLE FILTERING: Process ONLY 'v2_battles' table (WaveWarz's source table)
-    // IMPORTANT: We only process webhooks from WaveWarz's v2_battles table.
-    // We do NOT process webhooks from our own 'battles' table to prevent duplicate triggers.
-    // When v2_battles receives an insert, we copy it to our 'battles' table.
-    // If we also processed 'battles' webhooks, we'd get a second webhook for the same battle.
-    if (payload.table !== 'v2_battles') {
-      console.log(`⏭️ Skipping webhook trigger for table: ${payload.table}`);
-      console.log(`   Reason: Only 'v2_battles' table (WaveWarz source) is processed`);
-      console.log(`   Our 'battles' table is the destination, not a webhook source`);
-      return Response.json({ 
-        success: true, 
-        action: 'skipped_table',
-        reason: `Only 'v2_battles' table is processed to prevent duplicate triggers`,
-        table: payload.table 
-      });
     }
     
     // Handle INSERT (new battle created)

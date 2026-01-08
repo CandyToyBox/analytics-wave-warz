@@ -376,27 +376,48 @@ npm run start:api
 3. **Test with curl** using `table: "v2_battles"` (not `"battles"`)
 4. **Check your endpoint is accessible** (should return 405 for GET requests)
 
+### Webhooks Being Skipped with Misconfiguration Warning
+
+**Log message:** 
+```
+⚠️ WEBHOOK MISCONFIGURATION DETECTED
+❌ Received webhook for table: 'battles'
+✅ Expected table: 'v2_battles' (WaveWarz source)
+```
+
+**What this means:** 
+The webhook handler received a webhook from your local `battles` table, but it only processes webhooks from WaveWarz's `v2_battles` table. This indicates you've configured webhooks in the wrong place.
+
+**Why this is a problem:**
+- Webhooks on your local `battles` table create unnecessary load and log spam
+- They won't process any data because they're from the wrong table
+- You're still missing the actual webhooks from WaveWarz
+
+**Cause:** 
+You configured webhooks in your own Supabase Dashboard on the local `battles` table. This doesn't work with the current architecture because:
+1. Your `battles` table is the **destination** where webhook data is stored
+2. WaveWarz's `v2_battles` table is the **source** where webhooks should originate
+3. When WaveWarz sends a webhook from `v2_battles`, this handler copies it to your `battles` table
+
+**Solution:**
+1. **Go to your Supabase Dashboard**
+2. **Navigate to:** Database → Webhooks
+3. **Delete** any webhooks configured on the `battles` table
+4. **Contact the WaveWarz team** to configure webhooks from their `v2_battles` table to your endpoint
+5. **Verify** the webhook URL you provide to WaveWarz is: `https://your-domain.vercel.app/api/webhooks/battles`
+
+After fixing:
+- You should see `Source: WaveWarz v2_battles` in logs instead of skip messages
+- Battles will be properly inserted into your database
+- No more misconfiguration warnings
+
 ### Webhooks Returning 200 OK But No Data
 
 **Symptom:** Webhook returns success but battles aren't appearing in database
 
-**Cause:** You configured webhooks on the local `battles` table instead of receiving from WaveWarz
+**Cause:** Same as above - webhooks configured on wrong table
 
-**Solution:**
-1. Remove any webhooks configured in your Supabase Dashboard
-2. Provide your webhook URL to WaveWarz team
-3. They will configure webhooks on their `v2_battles` table
-4. Your handler will receive the webhooks and store data in your `battles` table
-
-### Webhooks Being Skipped
-
-**Log message:** `⏭️ Skipping webhook trigger for table: battles`
-
-**What this means:** The webhook handler received a webhook from your local `battles` table, but it only processes webhooks from WaveWarz's `v2_battles` table.
-
-**Cause:** You configured webhooks in your own Supabase Dashboard on the local `battles` table (this doesn't work with the current architecture)
-
-**Solution:** See "Webhooks Returning 200 OK But No Data" above
+**Solution:** See "Webhooks Being Skipped with Misconfiguration Warning" above
 
 ### Frame Not Displaying in Farcaster
 
