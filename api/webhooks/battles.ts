@@ -59,14 +59,14 @@ export async function POST(request: Request) {
       console.warn(`✅ Expected table: 'v2_battles' (WaveWarz source)`);
       console.warn('');
       console.warn('📋 This webhook is being IGNORED because:');
-      console.warn('   • Webhooks must come from WaveWarz\'s v2_battles table');
-      console.warn('   • Your local \'battles\' table is the destination, not a source');
+      console.warn('   • Webhooks must come from WaveWarz's v2_battles table');
+      console.warn('   • Your local 'battles' table is the destination, not a source');
       console.warn('   • Processing local table webhooks would cause duplicate entries');
       console.warn('');
       console.warn('🔧 To fix this misconfiguration:');
       console.warn('   1. Go to your Supabase Dashboard');
       console.warn('   2. Navigate to Database → Webhooks');
-      console.warn('   3. Delete any webhooks configured on the \'battles\' table');
+      console.warn('   3. Delete any webhooks configured on the 'battles' table');
       console.warn('   4. Contact WaveWarz team to configure webhooks from their v2_battles table');
       console.warn('   5. See WEBHOOK_SETUP.md for detailed instructions');
       console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
