@@ -1,3 +1,6 @@
 # Configuration for Supabase Edge Functions
 # Removed redundant functions that were redirecting to non-existent battles-webhook
 # Remaining functions: backfill-quick-battles
+
+[functions.backfill-quick-battles]
+verify_jwt = false
