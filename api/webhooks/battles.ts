@@ -40,6 +40,39 @@ export async function POST(request: Request) {
     console.log(`Type: ${payload.type}`);
     console.log(`Table: ${payload.table}`);
     
+    // ✅ WEBHOOK SECRET VERIFICATION (FIRST - Security best practice)
+    // Verify webhook secret to ensure requests come from WaveWarz
+    // Authentication must happen BEFORE any payload-dependent routing to follow
+    // security best practices: https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
+    const webhookSecret = request.headers.get('X-Webhook-Secret');
+    const expectedSecret = process.env.WAVEWARZ_WEBHOOK_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+
+    // In production, webhook secret is REQUIRED for security
+    if (!expectedSecret) {
+      if (isProduction) {
+        console.error('❌ WAVEWARZ_WEBHOOK_SECRET not configured in production - webhook REJECTED for security');
+        return Response.json(
+          { success: false, error: 'Webhook secret not configured. Please set WAVEWARZ_WEBHOOK_SECRET environment variable.' },
+          { status: 500 }
+        );
+      } else {
+        console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE! This is only allowed in development.');
+      }
+    }
+
+    if (expectedSecret && webhookSecret !== expectedSecret) {
+      console.error('❌ Invalid webhook secret from WaveWarz');
+      return Response.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    if (expectedSecret) {
+      console.log('✅ Webhook secret verified - request from WaveWarz');
+    }
+    
     // ✅ TABLE FILTERING: Process ONLY 'v2_battles' table (WaveWarz's source table)
     // IMPORTANT: We only process webhooks from WaveWarz's v2_battles table.
     // We do NOT process webhooks from our own 'battles' table to prevent duplicate triggers.
@@ -81,37 +114,6 @@ export async function POST(request: Request) {
     }
     
     console.log(`Source: WaveWarz v2_battles`);
-    
-    // ✅ WEBHOOK SECRET VERIFICATION
-    // Verify webhook secret to ensure requests come from WaveWarz
-    const webhookSecret = request.headers.get('X-Webhook-Secret');
-    const expectedSecret = process.env.WAVEWARZ_WEBHOOK_SECRET;
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
-
-    // In production, webhook secret is REQUIRED for security
-    if (!expectedSecret) {
-      if (isProduction) {
-        console.error('❌ WAVEWARZ_WEBHOOK_SECRET not configured in production - webhook REJECTED for security');
-        return Response.json(
-          { success: false, error: 'Webhook secret not configured. Please set WAVEWARZ_WEBHOOK_SECRET environment variable.' },
-          { status: 500 }
-        );
-      } else {
-        console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE! This is only allowed in development.');
-      }
-    }
-
-    if (expectedSecret && webhookSecret !== expectedSecret) {
-      console.error('❌ Invalid webhook secret from WaveWarz');
-      return Response.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    if (expectedSecret) {
-      console.log('✅ Webhook secret verified - request from WaveWarz');
-    }
     
     // Handle INSERT (new battle created)
     if (payload.type === 'INSERT') {
