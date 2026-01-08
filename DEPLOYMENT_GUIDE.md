@@ -42,7 +42,7 @@ Add BOTH to Vercel (use the SAME generated value for both):
 - **Name**: `VITE_BATTLE_UPDATE_API_KEY` (client-side)
 - **Value**: `<your-generated-key>`
 
-### 3. **WAVEWARZ_WEBHOOK_SECRET** (RECOMMENDED)
+### 3. **WAVEWARZ_WEBHOOK_SECRET** (REQUIRED in Production)
 Generate and set this to secure your webhook endpoint:
 ```bash
 openssl rand -base64 32
@@ -51,8 +51,11 @@ openssl rand -base64 32
 Add to Vercel:
 - **Name**: `WAVEWARZ_WEBHOOK_SECRET`
 - **Value**: `<your-generated-secret>`
+- **Environments**: Production, Preview, Development (all checked)
 
-**Note:** Also provide this secret to WaveWarz so they can include it in webhook requests.
+⚠️ **Important:** This is **REQUIRED** in production deployments. Without it, webhooks will be rejected for security reasons. It's optional only in development environments.
+
+**Note:** Also provide this secret to WaveWarz so they can include it in webhook requests with the `X-Webhook-Secret` header.
 
 ### 4. **ADMIN_SECRET** (OPTIONAL - for admin endpoints)
 For admin scan endpoint access:

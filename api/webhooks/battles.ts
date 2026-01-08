@@ -45,11 +45,19 @@ export async function POST(request: Request) {
     // Verify webhook secret to ensure requests come from WaveWarz
     const webhookSecret = request.headers.get('X-Webhook-Secret');
     const expectedSecret = process.env.WAVEWARZ_WEBHOOK_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
+    // In production, webhook secret is REQUIRED for security
     if (!expectedSecret) {
-      console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE!');
-      // In production, consider requiring the secret:
-      // return Response.json({ success: false, error: 'Webhook secret not configured' }, { status: 500 });
+      if (isProduction) {
+        console.error('❌ WAVEWARZ_WEBHOOK_SECRET not configured in production - webhook REJECTED for security');
+        return Response.json(
+          { success: false, error: 'Webhook secret not configured. Please set WAVEWARZ_WEBHOOK_SECRET environment variable.' },
+          { status: 500 }
+        );
+      } else {
+        console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE! This is only allowed in development.');
+      }
     }
 
     if (expectedSecret && webhookSecret !== expectedSecret) {

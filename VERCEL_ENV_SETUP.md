@@ -4,7 +4,8 @@
 
 If you're seeing these errors in your logs:
 - ❌ `Failed to update battle: Invalid API key`
-- ⚠️ `WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE!`
+- ❌ `WAVEWARZ_WEBHOOK_SECRET not configured in production - webhook REJECTED for security`
+- ⚠️ `WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE!` (development only)
 
 This means required environment variables are missing in Vercel.
 
@@ -38,12 +39,9 @@ This means required environment variables are missing in Vercel.
 | `VITE_SUPABASE_KEY` | `eyJ...` | Supabase Dashboard → Settings → API → anon/public key |
 | `BATTLE_UPDATE_API_KEY` | Generate new | `openssl rand -base64 32` |
 | `VITE_BATTLE_UPDATE_API_KEY` | Same as above | Use same value as BATTLE_UPDATE_API_KEY |
+| `WAVEWARZ_WEBHOOK_SECRET` | Generate new | `openssl rand -base64 32` - **REQUIRED in Production** |
 
-#### Recommended Variables:
-
-| Variable Name | Value | Purpose |
-|--------------|-------|---------|
-| `WAVEWARZ_WEBHOOK_SECRET` | Generate new | Secure webhook endpoint |
+⚠️ **Important:** `WAVEWARZ_WEBHOOK_SECRET` is **REQUIRED** for production deployments. Webhooks will be rejected without it for security reasons. It's optional only in development.
 
 #### Optional Variables:
 

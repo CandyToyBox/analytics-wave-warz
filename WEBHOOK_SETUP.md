@@ -103,9 +103,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_KEY=your-anon-key
 
-# Recommended for security
+# REQUIRED in Production for webhook security
+# Generate with: openssl rand -base64 32
 WAVEWARZ_WEBHOOK_SECRET=your-generated-secret
 ```
+
+⚠️ **Important:** `WAVEWARZ_WEBHOOK_SECRET` is **REQUIRED** in production deployments. Webhooks will be rejected if this is not configured. This is optional only in development environments for easier testing.
 
 See `VERCEL_ENV_SETUP.md` for detailed instructions.
 
@@ -284,24 +287,33 @@ Your API server provides these endpoints for Farcaster Frames:
 
 ## 🔒 Security Best Practices
 
-### 1. Webhook Secret Validation (Recommended)
+### 1. Webhook Secret Validation (REQUIRED in Production)
 
-Add secret validation to your webhook handler:
+The webhook handler now **requires** webhook secret validation in production environments:
 
 ```typescript
 // In api/webhooks/battles.ts
 const WEBHOOK_SECRET = process.env.WAVEWARZ_WEBHOOK_SECRET;
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
-export async function battleWebhookHandler(req: Request, res: Response) {
-  const providedSecret = req.headers['x-webhook-secret'];
+// Production: Webhook secret is REQUIRED
+if (!WEBHOOK_SECRET && isProduction) {
+  return res.status(500).json({ error: 'Webhook secret not configured' });
+}
 
-  if (WEBHOOK_SECRET && providedSecret !== WEBHOOK_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // ... rest of handler
+// Validate secret if provided
+if (WEBHOOK_SECRET && providedSecret !== WEBHOOK_SECRET) {
+  return res.status(401).json({ error: 'Unauthorized' });
 }
 ```
+
+**Configuration:**
+1. Generate a secure secret: `openssl rand -base64 32`
+2. Set `WAVEWARZ_WEBHOOK_SECRET` in your production environment variables
+3. Provide the same secret to the WaveWarz team for webhook configuration
+4. In production, webhooks without the correct secret will be rejected
+
+**Development:** The webhook secret is optional in development environments to allow easier testing. You'll see a warning but webhooks will still be processed.
 
 ### 2. IP Whitelisting
 
