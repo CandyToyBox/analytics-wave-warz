@@ -39,17 +39,26 @@ export async function POST(request: Request) {
     console.log('📥 Webhook Details:');
     console.log(`Type: ${payload.type}`);
     console.log(`Table: ${payload.table}`);
-    console.log(`Source: WaveWarz`);
     
-    // ✅ WEBHOOK SECRET VERIFICATION
+    // ✅ WEBHOOK SECRET VERIFICATION (FIRST - Security best practice)
     // Verify webhook secret to ensure requests come from WaveWarz
+    // Authentication must happen BEFORE any payload-dependent routing to follow
+    // security best practices: https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
     const webhookSecret = request.headers.get('X-Webhook-Secret');
     const expectedSecret = process.env.WAVEWARZ_WEBHOOK_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
+    // In production, webhook secret is REQUIRED for security
     if (!expectedSecret) {
-      console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE!');
-      // In production, consider requiring the secret:
-      // return Response.json({ success: false, error: 'Webhook secret not configured' }, { status: 500 });
+      if (isProduction) {
+        console.error('❌ WAVEWARZ_WEBHOOK_SECRET not configured in production - webhook REJECTED for security');
+        return Response.json(
+          { success: false, error: 'Webhook secret not configured. Please set WAVEWARZ_WEBHOOK_SECRET environment variable.' },
+          { status: 500 }
+        );
+      } else {
+        console.warn('⚠️ WAVEWARZ_WEBHOOK_SECRET not configured - webhook is INSECURE! This is only allowed in development.');
+      }
     }
 
     if (expectedSecret && webhookSecret !== expectedSecret) {
@@ -69,17 +78,42 @@ export async function POST(request: Request) {
     // We do NOT process webhooks from our own 'battles' table to prevent duplicate triggers.
     // When v2_battles receives an insert, we copy it to our 'battles' table.
     // If we also processed 'battles' webhooks, we'd get a second webhook for the same battle.
+    //
+    // ⚠️ COMMON MISCONFIGURATION: If you're seeing this message repeatedly, it means
+    // you've configured webhooks in YOUR Supabase Dashboard on the local 'battles' table.
+    // This is incorrect! Webhooks should only come from WaveWarz's 'v2_battles' table.
+    // Solution: Remove the webhook from your Supabase Dashboard and provide your webhook
+    // URL to the WaveWarz team instead.
     if (payload.table !== 'v2_battles') {
-      console.log(`⏭️ Skipping webhook trigger for table: ${payload.table}`);
-      console.log(`   Reason: Only 'v2_battles' table (WaveWarz source) is processed`);
-      console.log(`   Our 'battles' table is the destination, not a webhook source`);
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.warn('⚠️ WEBHOOK MISCONFIGURATION DETECTED');
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.warn(`❌ Received webhook for table: '${payload.table}'`);
+      console.warn(`✅ Expected table: 'v2_battles' (WaveWarz source)`);
+      console.warn('');
+      console.warn('📋 This webhook is being IGNORED because:');
+      console.warn('   • Webhooks must come from WaveWarz's v2_battles table');
+      console.warn('   • Your local 'battles' table is the destination, not a source');
+      console.warn('   • Processing local table webhooks would cause duplicate entries');
+      console.warn('');
+      console.warn('🔧 To fix this misconfiguration:');
+      console.warn('   1. Go to your Supabase Dashboard');
+      console.warn('   2. Navigate to Database → Webhooks');
+      console.warn('   3. Delete any webhooks configured on the 'battles' table');
+      console.warn('   4. Contact WaveWarz team to configure webhooks from their v2_battles table');
+      console.warn('   5. See WEBHOOK_SETUP.md for detailed instructions');
+      console.warn('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       return Response.json({ 
         success: true, 
         action: 'skipped_table',
         reason: `Only 'v2_battles' table is processed to prevent duplicate triggers`,
-        table: payload.table 
+        table: payload.table,
+        message: 'Webhook misconfiguration detected. Remove webhooks from your local Supabase battles table.'
       });
     }
+    
+    console.log(`Source: WaveWarz v2_battles`);
     
     // Handle INSERT (new battle created)
     if (payload.type === 'INSERT') {

@@ -103,9 +103,12 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_KEY=your-anon-key
 
-# Recommended for security
+# REQUIRED in Production for webhook security
+# Generate with: openssl rand -base64 32
 WAVEWARZ_WEBHOOK_SECRET=your-generated-secret
 ```
+
+⚠️ **Important:** `WAVEWARZ_WEBHOOK_SECRET` is **REQUIRED** in production deployments. Webhooks will be rejected if this is not configured. This is optional only in development environments for easier testing.
 
 See `VERCEL_ENV_SETUP.md` for detailed instructions.
 
@@ -284,24 +287,33 @@ Your API server provides these endpoints for Farcaster Frames:
 
 ## 🔒 Security Best Practices
 
-### 1. Webhook Secret Validation (Recommended)
+### 1. Webhook Secret Validation (REQUIRED in Production)
 
-Add secret validation to your webhook handler:
+The webhook handler now **requires** webhook secret validation in production environments:
 
 ```typescript
 // In api/webhooks/battles.ts
 const WEBHOOK_SECRET = process.env.WAVEWARZ_WEBHOOK_SECRET;
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
-export async function battleWebhookHandler(req: Request, res: Response) {
-  const providedSecret = req.headers['x-webhook-secret'];
+// Production: Webhook secret is REQUIRED
+if (!WEBHOOK_SECRET && isProduction) {
+  return res.status(500).json({ error: 'Webhook secret not configured' });
+}
 
-  if (WEBHOOK_SECRET && providedSecret !== WEBHOOK_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  // ... rest of handler
+// Validate secret if provided
+if (WEBHOOK_SECRET && providedSecret !== WEBHOOK_SECRET) {
+  return res.status(401).json({ error: 'Unauthorized' });
 }
 ```
+
+**Configuration:**
+1. Generate a secure secret: `openssl rand -base64 32`
+2. Set `WAVEWARZ_WEBHOOK_SECRET` in your production environment variables
+3. Provide the same secret to the WaveWarz team for webhook configuration
+4. In production, webhooks without the correct secret will be rejected
+
+**Development:** The webhook secret is optional in development environments to allow easier testing. You'll see a warning but webhooks will still be processed.
 
 ### 2. IP Whitelisting
 
@@ -364,27 +376,48 @@ npm run start:api
 3. **Test with curl** using `table: "v2_battles"` (not `"battles"`)
 4. **Check your endpoint is accessible** (should return 405 for GET requests)
 
+### Webhooks Being Skipped with Misconfiguration Warning
+
+**Log message:** 
+```
+⚠️ WEBHOOK MISCONFIGURATION DETECTED
+❌ Received webhook for table: 'battles'
+✅ Expected table: 'v2_battles' (WaveWarz source)
+```
+
+**What this means:** 
+The webhook handler received a webhook from your local `battles` table, but it only processes webhooks from WaveWarz's `v2_battles` table. This indicates you've configured webhooks in the wrong place.
+
+**Why this is a problem:**
+- Webhooks on your local `battles` table create unnecessary load and log spam
+- They won't process any data because they're from the wrong table
+- You're still missing the actual webhooks from WaveWarz
+
+**Cause:** 
+You configured webhooks in your own Supabase Dashboard on the local `battles` table. This doesn't work with the current architecture because:
+1. Your `battles` table is the **destination** where webhook data is stored
+2. WaveWarz's `v2_battles` table is the **source** where webhooks should originate
+3. When WaveWarz sends a webhook from `v2_battles`, this handler copies it to your `battles` table
+
+**Solution:**
+1. **Go to your Supabase Dashboard**
+2. **Navigate to:** Database → Webhooks
+3. **Delete** any webhooks configured on the `battles` table
+4. **Contact the WaveWarz team** to configure webhooks from their `v2_battles` table to your endpoint
+5. **Verify** the webhook URL you provide to WaveWarz is: `https://your-domain.vercel.app/api/webhooks/battles`
+
+After fixing:
+- You should see `Source: WaveWarz v2_battles` in logs instead of skip messages
+- Battles will be properly inserted into your database
+- No more misconfiguration warnings
+
 ### Webhooks Returning 200 OK But No Data
 
 **Symptom:** Webhook returns success but battles aren't appearing in database
 
-**Cause:** You configured webhooks on the local `battles` table instead of receiving from WaveWarz
+**Cause:** Same as above - webhooks configured on wrong table
 
-**Solution:**
-1. Remove any webhooks configured in your Supabase Dashboard
-2. Provide your webhook URL to WaveWarz team
-3. They will configure webhooks on their `v2_battles` table
-4. Your handler will receive the webhooks and store data in your `battles` table
-
-### Webhooks Being Skipped
-
-**Log message:** `⏭️ Skipping webhook trigger for table: battles`
-
-**What this means:** The webhook handler received a webhook from your local `battles` table, but it only processes webhooks from WaveWarz's `v2_battles` table.
-
-**Cause:** You configured webhooks in your own Supabase Dashboard on the local `battles` table (this doesn't work with the current architecture)
-
-**Solution:** See "Webhooks Returning 200 OK But No Data" above
+**Solution:** See "Webhooks Being Skipped with Misconfiguration Warning" above
 
 ### Frame Not Displaying in Farcaster
 
