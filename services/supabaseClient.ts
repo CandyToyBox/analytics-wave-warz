@@ -45,6 +45,8 @@ export const BATTLE_COLUMNS = `
   is_community_battle,
   is_quick_battle,
   quick_battle_queue_id,
+  quick_battle_artist1_audius_profile_pic,
+  quick_battle_artist2_audius_profile_pic,
   is_test_battle,
   total_volume_a,
   total_volume_b,
@@ -96,7 +98,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             id: 'A',
             name: row.artist1_name,
             color: '#06b6d4',
-            avatar: row.image_url,
+            avatar: row.is_quick_battle ? (row.quick_battle_artist1_audius_profile_pic || row.image_url) : row.image_url,
             wallet: row.artist1_wallet,
             twitter: row.artist1_twitter
           },
@@ -104,7 +106,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             id: 'B',
             name: row.artist2_name,
             color: '#e879f9',
-            avatar: row.image_url,
+            avatar: row.is_quick_battle ? (row.quick_battle_artist2_audius_profile_pic || row.image_url) : row.image_url,
             wallet: row.artist2_wallet,
             twitter: row.artist2_twitter
           },
