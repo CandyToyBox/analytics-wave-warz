@@ -98,7 +98,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             id: 'A',
             name: row.artist1_name,
             color: '#06b6d4',
-            avatar: row.quick_battle_artist1_audius_profile_pic || row.image_url,
+            avatar: row.is_quick_battle ? (row.quick_battle_artist1_audius_profile_pic || row.image_url) : row.image_url,
             wallet: row.artist1_wallet,
             twitter: row.artist1_twitter
           },
@@ -106,7 +106,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             id: 'B',
             name: row.artist2_name,
             color: '#e879f9',
-            avatar: row.quick_battle_artist2_audius_profile_pic || row.image_url,
+            avatar: row.is_quick_battle ? (row.quick_battle_artist2_audius_profile_pic || row.image_url) : row.image_url,
             wallet: row.artist2_wallet,
             twitter: row.artist2_twitter
           },
