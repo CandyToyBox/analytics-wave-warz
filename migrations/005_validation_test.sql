@@ -153,23 +153,35 @@ WHERE proname = 'update_artist_leaderboard'
 \echo 'Attempting to insert battle with negative volume...'
 
 -- This should fail with constraint violation
+-- Uses a transaction to ensure cleanup even if it somehow succeeds
 DO $$
+DECLARE
+  test_uuid uuid := gen_random_uuid();
 BEGIN
+  -- Attempt to insert invalid data
   INSERT INTO battles (
     id, battle_id, artist1_name, artist1_wallet,
     artist2_name, artist2_wallet, total_volume_a
   ) VALUES (
-    gen_random_uuid(), 'test_constraint_violation',
+    test_uuid, 'test_constraint_' || test_uuid::text,
     'Test Artist 1', 'test_wallet_1',
     'Test Artist 2', 'test_wallet_2',
     -100  -- Invalid negative value
   );
   
+  -- If we reach here, the constraint didn't work - clean up and raise error
+  DELETE FROM battles WHERE id = test_uuid;
   RAISE EXCEPTION 'ERROR: Constraint validation failed! Negative value was accepted.';
 EXCEPTION
   WHEN check_violation THEN
     RAISE NOTICE 'SUCCESS: Constraint correctly rejected negative value';
   WHEN OTHERS THEN
+    -- Clean up any test data if it somehow got inserted
+    BEGIN
+      DELETE FROM battles WHERE id = test_uuid;
+    EXCEPTION WHEN OTHERS THEN
+      NULL;  -- Ignore cleanup errors
+    END;
     RAISE;
 END $$;
 

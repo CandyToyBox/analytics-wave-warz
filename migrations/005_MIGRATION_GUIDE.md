@@ -40,10 +40,11 @@ Creates targeted indexes for common query patterns:
 
 Implements database triggers that automatically update the artist leaderboard when battles are completed:
 
-- Triggers on INSERT or UPDATE of battles when `winner_decided = true`
+- Triggers only when `winner_decided` changes from false to true (avoids redundant updates)
 - Automatically updates or inserts artist statistics
 - Calculates win rates and average volumes on the fly
 - Excludes test battles from leaderboard updates
+- Sets image_url and total_earnings_sol to NULL/0 (should be updated separately)
 
 **Benefits:**
 - Eliminates manual leaderboard refresh scripts

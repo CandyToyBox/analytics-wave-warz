@@ -529,27 +529,31 @@ BEGIN
   IF NEW.winner_decided = true THEN
     
     -- Update or insert Artist 1
+    -- Note: image_url is intentionally set to NULL on initial insert
+    -- Artists may have their own profile images separate from battle card images
     INSERT INTO public.artist_leaderboard (
       wallet_address, 
       artist_name, 
-      image_url, 
+      image_url,  -- NULL on insert, should be updated separately with artist's profile image
       twitter_handle, 
       music_link,
       battles_participated,
       wins,
       losses,
       total_volume_generated,
+      total_earnings_sol,
       updated_at
     ) VALUES (
       NEW.artist1_wallet,
       NEW.artist1_name,
-      NEW.image_url,  -- Shared battle image (both artists in same battle)
+      NULL,  -- Artist profile image should be set separately, not from battle card
       NEW.artist1_twitter,
       NEW.artist1_music_link,
       1,
       CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END,
       CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END,
       COALESCE(NEW.total_volume_a, 0),
+      0,  -- Earnings calculated separately (fees + settlement bonuses)
       CURRENT_TIMESTAMP
     )
     ON CONFLICT (wallet_address) 
@@ -571,27 +575,30 @@ BEGIN
       updated_at = CURRENT_TIMESTAMP;
     
     -- Update or insert Artist 2
+    -- Note: image_url is intentionally set to NULL on initial insert
     INSERT INTO public.artist_leaderboard (
       wallet_address, 
       artist_name, 
-      image_url, 
+      image_url,  -- NULL on insert, should be updated separately with artist's profile image
       twitter_handle, 
       music_link,
       battles_participated,
       wins,
       losses,
       total_volume_generated,
+      total_earnings_sol,
       updated_at
     ) VALUES (
       NEW.artist2_wallet,
       NEW.artist2_name,
-      NEW.image_url,  -- Shared battle image (both artists in same battle)
+      NULL,  -- Artist profile image should be set separately, not from battle card
       NEW.artist2_twitter,
       NEW.artist2_music_link,
       1,
       CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END,
       CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END,
       COALESCE(NEW.total_volume_b, 0),
+      0,  -- Earnings calculated separately (fees + settlement bonuses)
       CURRENT_TIMESTAMP
     )
     ON CONFLICT (wallet_address) 
@@ -618,11 +625,12 @@ END;
 $$;
 
 -- Create the trigger
+-- Only fires when winner_decided changes to true (not on every volume update)
 CREATE TRIGGER trig_update_artist_leaderboard
-  AFTER INSERT OR UPDATE OF winner_decided, winner_artist_a, total_volume_a, total_volume_b
+  AFTER UPDATE OF winner_decided
   ON public.battles
   FOR EACH ROW
-  WHEN (NEW.winner_decided = true AND COALESCE(NEW.is_test_battle, false) = false)
+  WHEN (OLD.winner_decided = false AND NEW.winner_decided = true AND COALESCE(NEW.is_test_battle, false) = false)
   EXECUTE FUNCTION public.update_artist_leaderboard();
 
 -- Add helpful comment
