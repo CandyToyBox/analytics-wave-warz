@@ -153,17 +153,19 @@ WHERE proname = 'update_artist_leaderboard'
 \echo 'Attempting to insert battle with negative volume...'
 
 -- This should fail with constraint violation
--- Uses a transaction to ensure cleanup even if it somehow succeeds
+-- Uses a predictable test UUID with timestamp to ensure uniqueness
 DO $$
 DECLARE
-  test_uuid uuid := gen_random_uuid();
+  -- Use a predictable UUID format for testing: 00000000-0000-0000-0000-<timestamp in microseconds>
+  test_uuid uuid := ('00000000-0000-0000-0000-' || lpad(to_hex(extract(epoch from now())::bigint), 12, '0'))::uuid;
+  test_battle_id text := 'test_constraint_' || extract(epoch from now())::text;
 BEGIN
   -- Attempt to insert invalid data
   INSERT INTO battles (
     id, battle_id, artist1_name, artist1_wallet,
     artist2_name, artist2_wallet, total_volume_a
   ) VALUES (
-    test_uuid, 'test_constraint_' || test_uuid::text,
+    test_uuid, test_battle_id,
     'Test Artist 1', 'test_wallet_1',
     'Test Artist 2', 'test_wallet_2',
     -100  -- Invalid negative value
@@ -178,7 +180,7 @@ EXCEPTION
   WHEN OTHERS THEN
     -- Clean up any test data if it somehow got inserted
     BEGIN
-      DELETE FROM battles WHERE id = test_uuid;
+      DELETE FROM battles WHERE id = test_uuid OR battle_id = test_battle_id;
     EXCEPTION WHEN OTHERS THEN
       NULL;  -- Ignore cleanup errors
     END;

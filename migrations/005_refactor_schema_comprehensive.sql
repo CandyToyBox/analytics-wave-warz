@@ -525,8 +525,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  -- Only process if battle has decided winner
-  IF NEW.winner_decided = true THEN
+  -- Trigger is already filtered by WHEN clause, so no need to check winner_decided again
+  -- Process the battle and update leaderboard
     
     -- Update or insert Artist 1
     -- Note: image_url is intentionally set to NULL on initial insert
@@ -626,11 +626,17 @@ $$;
 
 -- Create the trigger
 -- Only fires when winner_decided changes to true (not on every volume update)
+-- Additional validation: winner_artist_a must not be NULL (ensures winner is properly determined)
 CREATE TRIGGER trig_update_artist_leaderboard
   AFTER UPDATE OF winner_decided
   ON public.battles
   FOR EACH ROW
-  WHEN (OLD.winner_decided = false AND NEW.winner_decided = true AND COALESCE(NEW.is_test_battle, false) = false)
+  WHEN (
+    OLD.winner_decided = false 
+    AND NEW.winner_decided = true 
+    AND NEW.winner_artist_a IS NOT NULL
+    AND COALESCE(NEW.is_test_battle, false) = false
+  )
   EXECUTE FUNCTION public.update_artist_leaderboard();
 
 -- Add helpful comment
