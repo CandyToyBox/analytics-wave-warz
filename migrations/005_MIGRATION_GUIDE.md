@@ -88,8 +88,8 @@ supabase login
 # Link to your project
 supabase link --project-ref YOUR_PROJECT_REF
 
-# Apply the migration
-supabase db push migrations/005_refactor_schema_comprehensive.sql
+# Connect to database and run the migration
+psql $(supabase db remote-url) -f migrations/005_refactor_schema_comprehensive.sql
 ```
 
 ### Option 3: PostgreSQL CLI (psql)

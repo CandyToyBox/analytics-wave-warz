@@ -3,6 +3,10 @@
 -- ============================================================================
 -- This script validates that the migration was applied successfully
 -- Run this AFTER applying 005_refactor_schema_comprehensive.sql
+--
+-- NOTE: This script uses psql-specific \echo commands for better formatting.
+-- If running in Supabase Dashboard, the \echo lines will be ignored but
+-- the queries will still execute and show results.
 -- ============================================================================
 
 \echo '================================================================'

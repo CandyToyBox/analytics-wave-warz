@@ -517,11 +517,12 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_trader_leaderboard_total_invested
 DROP TRIGGER IF EXISTS trig_update_artist_leaderboard ON public.battles;
 
 -- Create or replace the trigger function
+-- Uses fully qualified names to prevent search_path attacks
 CREATE OR REPLACE FUNCTION public.update_artist_leaderboard() 
 RETURNS TRIGGER 
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = ''
 AS $$
 BEGIN
   -- Only process if battle has decided winner
@@ -542,7 +543,7 @@ BEGIN
     ) VALUES (
       NEW.artist1_wallet,
       NEW.artist1_name,
-      NEW.image_url,
+      NEW.image_url,  -- Shared battle image (both artists in same battle)
       NEW.artist1_twitter,
       NEW.artist1_music_link,
       1,
@@ -553,18 +554,18 @@ BEGIN
     )
     ON CONFLICT (wallet_address) 
     DO UPDATE SET
-      battles_participated = artist_leaderboard.battles_participated + 1,
-      wins = artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END,
-      losses = artist_leaderboard.losses + CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END,
-      total_volume_generated = artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_a, 0),
+      battles_participated = public.artist_leaderboard.battles_participated + 1,
+      wins = public.artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END,
+      losses = public.artist_leaderboard.losses + CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END,
+      total_volume_generated = public.artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_a, 0),
       win_rate = CASE 
-        WHEN (artist_leaderboard.battles_participated + 1) > 0 
-        THEN ((artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END)::numeric / (artist_leaderboard.battles_participated + 1)) * 100
+        WHEN (public.artist_leaderboard.battles_participated + 1) > 0 
+        THEN ((public.artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END)::numeric / (public.artist_leaderboard.battles_participated + 1)) * 100
         ELSE 0 
       END,
       avg_volume_per_battle = CASE
-        WHEN (artist_leaderboard.battles_participated + 1) > 0
-        THEN (artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_a, 0)) / (artist_leaderboard.battles_participated + 1)
+        WHEN (public.artist_leaderboard.battles_participated + 1) > 0
+        THEN (public.artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_a, 0)) / (public.artist_leaderboard.battles_participated + 1)
         ELSE 0
       END,
       updated_at = CURRENT_TIMESTAMP;
@@ -584,7 +585,7 @@ BEGIN
     ) VALUES (
       NEW.artist2_wallet,
       NEW.artist2_name,
-      NEW.image_url,
+      NEW.image_url,  -- Shared battle image (both artists in same battle)
       NEW.artist2_twitter,
       NEW.artist2_music_link,
       1,
@@ -595,18 +596,18 @@ BEGIN
     )
     ON CONFLICT (wallet_address) 
     DO UPDATE SET
-      battles_participated = artist_leaderboard.battles_participated + 1,
-      wins = artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END,
-      losses = artist_leaderboard.losses + CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END,
-      total_volume_generated = artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_b, 0),
+      battles_participated = public.artist_leaderboard.battles_participated + 1,
+      wins = public.artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END,
+      losses = public.artist_leaderboard.losses + CASE WHEN NEW.winner_artist_a THEN 1 ELSE 0 END,
+      total_volume_generated = public.artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_b, 0),
       win_rate = CASE 
-        WHEN (artist_leaderboard.battles_participated + 1) > 0 
-        THEN ((artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END)::numeric / (artist_leaderboard.battles_participated + 1)) * 100
+        WHEN (public.artist_leaderboard.battles_participated + 1) > 0 
+        THEN ((public.artist_leaderboard.wins + CASE WHEN NEW.winner_artist_a THEN 0 ELSE 1 END)::numeric / (public.artist_leaderboard.battles_participated + 1)) * 100
         ELSE 0 
       END,
       avg_volume_per_battle = CASE
-        WHEN (artist_leaderboard.battles_participated + 1) > 0
-        THEN (artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_b, 0)) / (artist_leaderboard.battles_participated + 1)
+        WHEN (public.artist_leaderboard.battles_participated + 1) > 0
+        THEN (public.artist_leaderboard.total_volume_generated + COALESCE(NEW.total_volume_b, 0)) / (public.artist_leaderboard.battles_participated + 1)
         ELSE 0
       END,
       updated_at = CURRENT_TIMESTAMP;
@@ -621,11 +622,11 @@ CREATE TRIGGER trig_update_artist_leaderboard
   AFTER INSERT OR UPDATE OF winner_decided, winner_artist_a, total_volume_a, total_volume_b
   ON public.battles
   FOR EACH ROW
-  WHEN (NEW.winner_decided = true AND (NEW.is_test_battle IS NULL OR NEW.is_test_battle = false))
+  WHEN (NEW.winner_decided = true AND COALESCE(NEW.is_test_battle, false) = false)
   EXECUTE FUNCTION public.update_artist_leaderboard();
 
 -- Add helpful comment
-COMMENT ON FUNCTION public.update_artist_leaderboard() IS 'Auto-updates artist_leaderboard table when battles are decided. Uses SECURITY DEFINER to bypass RLS. Safe search_path prevents SQL injection.';
+COMMENT ON FUNCTION public.update_artist_leaderboard() IS 'Auto-updates artist_leaderboard table when battles are decided. Uses SECURITY DEFINER to bypass RLS. Empty search_path with fully qualified names prevents SQL injection.';
 
 -- ============================================================================
 -- PART 7: Grant Proper Permissions
