@@ -5,6 +5,7 @@ import { fetchBattleOnChain } from '../services/solanaService';
 import { formatSol, formatUsd, formatPct } from '../utils';
 import { Music, Disc, Twitter, Loader2, PlayCircle, Check, Clock } from 'lucide-react';
 import { useArtistLeaderboard as useArtistLeaderboardQuery } from '../hooks/useBattleData';
+import { isTestBattle } from '../config/battleFilters';
 
 interface Props {
     battles: BattleSummary[];
@@ -62,12 +63,17 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
         setIsScanning(true);
         setScanProgress(0);
 
+        // Only scan Featured (main event) battles — same eligibility as the hook
+        const featuredBattles = battles.filter(
+            b => !b.isQuickBattle && !b.isCommunityBattle && !isTestBattle(b)
+        );
+
         const enrichedBattles = [];
         const BATCH_SIZE = 2;
         const DELAY = 2000;
 
-        for (let i = 0; i < battles.length; i += BATCH_SIZE) {
-            const batch = battles.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < featuredBattles.length; i += BATCH_SIZE) {
+            const batch = featuredBattles.slice(i, i + BATCH_SIZE);
             try {
                 const promises = batch.map(b => fetchBattleOnChain(b));
                 const results = await Promise.all(promises);
@@ -98,6 +104,11 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
 
     const TotalPayouts = stats.reduce((acc, curr) => acc + curr.totalEarningsSol, 0);
     const TotalStreams = stats.reduce((acc, curr) => acc + curr.spotifyStreamEquivalents, 0);
+
+    // Count of battles that will actually be scanned (featured battles only)
+    const featuredBattleCount = battles.filter(
+        b => !b.isQuickBattle && !b.isCommunityBattle && !isTestBattle(b)
+    ).length;
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -139,7 +150,7 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
                 {isScanning ? (
                     <div className="flex items-center gap-3 bg-navy-900 px-4 py-2 rounded-lg border border-navy-800">
                         <Loader2 className="animate-spin text-wave-blue" size={16} />
-                        <span className="text-xs text-ui-gray">Scanning Blockchain... ({scanProgress}/{battles.length})</span>
+                        <span className="text-xs text-ui-gray">Scanning Blockchain... ({scanProgress}/{featuredBattleCount})</span>
                     </div>
                 ) : (
                     <button

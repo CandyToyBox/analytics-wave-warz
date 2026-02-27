@@ -47,8 +47,11 @@ export function calculateArtistLeaderboard(
   };
 
   battles.forEach(battle => {
-    // Skip if battle hasn't started or no pool data
-    if (!battle.artistASolBalance && !battle.artistBSolBalance) return;
+    // Skip battles with no meaningful data: no pool balance, no actual volume, and no decided winner
+    const hasPoolData = !!(battle.artistASolBalance || battle.artistBSolBalance);
+    const hasVolumeData = !!(battle.totalVolumeA || battle.totalVolumeB);
+    const hasWinnerData = battle.winnerDecided && battle.winnerArtistA !== undefined;
+    if (!hasPoolData && !hasVolumeData && !hasWinnerData) return;
 
     const statsA = getOrInit(battle.artistA);
     const statsB = getOrInit(battle.artistB);
@@ -119,9 +122,8 @@ export function calculateArtistLeaderboard(
 }
 
 export function mockEstimateVolumes(battles: BattleSummary[]): BattleState[] {
-  // If we don't have scanned data, we can roughly estimate volume 
-  // to avoid showing "0 earnings" in the demo before a scan.
-  // Assumption: Volume is roughly 2x TVL in active battles (purely heuristic for demo)
+  // Use DB-cached volumes when available; fall back to a 1.5× TVL estimate
+  // so the leaderboard shows real numbers as soon as a scan has been stored.
   return battles.map(b => ({
      ...b,
      startTime: new Date(b.createdAt).getTime(),
@@ -131,12 +133,11 @@ export function mockEstimateVolumes(battles: BattleSummary[]): BattleState[] {
      artistBSolBalance: b.artistBSolBalance || 0,
      artistASupply: 0,
      artistBSupply: 0,
-     // Mock volume if 0 to show mechanics
-     totalVolumeA: (b.artistASolBalance || 0) * 1.5, 
-     totalVolumeB: (b.artistBSolBalance || 0) * 1.5,
-     tradeCount: 0,
-     uniqueTraders: 0,
-     recentTrades: [],
+     totalVolumeA: b.totalVolumeA ?? (b.artistASolBalance || 0) * 1.5,
+     totalVolumeB: b.totalVolumeB ?? (b.artistBSolBalance || 0) * 1.5,
+     tradeCount: b.tradeCount ?? 0,
+     uniqueTraders: b.uniqueTraders ?? 0,
+     recentTrades: b.recentTrades ?? [],
      battleAddress: '',
   }));
 }

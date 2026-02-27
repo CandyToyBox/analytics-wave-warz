@@ -16,6 +16,12 @@ const DISTRIBUTION = {
 };
 
 export const calculateTVLWinner = (state: BattleState): 'A' | 'B' => {
+  // Use the authoritative on-chain/DB winner flag when available
+  if (state.winnerDecided && state.winnerArtistA !== undefined) {
+    return state.winnerArtistA ? 'A' : 'B';
+  }
+  // Fall back to TVL comparison for in-progress or unresolved battles.
+  // Tie goes to 'B' to match the original on-chain tie-breaking convention.
   return state.artistASolBalance > state.artistBSolBalance ? 'A' : 'B';
 };
 

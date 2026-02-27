@@ -42,11 +42,13 @@ import { InfoTooltip } from './components/InfoTooltip';
 import { fetchBattleOnChain, fetchTraderProfile } from './services/solanaService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAllBattles } from './hooks/useBattleData';
+import { isTestBattle } from './config/battleFilters';
 
 // --- FILTER LOGIC ---
-// Since we now filter by is_test_battle in the database query,
-// we only need basic validation here
+// Exclude test battles (by DB flag, known test wallets/names, or self-battles)
+// and require both artist wallets to be present for non-community battles.
 const isValidBattle = (b: BattleSummary): boolean => {
+  if (isTestBattle(b)) return false;
   if (b.isCommunityBattle) return true;
   if (!b.artistA.wallet || !b.artistB.wallet) return false;
   return true;
