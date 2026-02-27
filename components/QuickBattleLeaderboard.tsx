@@ -21,9 +21,9 @@ const DatabaseRow: React.FC<{
   const totalVolume = entry.totalVolumeGenerated ?? entry.totalVolume ?? 0;
   const wins = entry.wins ?? 0;
   const losses = entry.losses ?? 0;
-  const computedBattles = wins + losses;
-  const battles = entry.battlesParticipated ?? (computedBattles > 0 ? computedBattles : undefined);
-  const winRate = entry.winRate ?? (battles ? (wins / battles) * 100 : undefined);
+  const decidedBattles = wins + losses;
+  const battles = entry.battlesParticipated;
+  const winRate = decidedBattles > 0 ? (wins / decidedBattles) * 100 : undefined;
 
   return (
     <tr className="hover:bg-navy-700/60 transition-colors">
@@ -128,8 +128,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
         .from('battles')
         .select(BATTLE_COLUMNS)
         .eq('is_quick_battle', true)
-        .order('created_at', { ascending: false })
-        .limit(50); // Limit to 50 at a time to avoid timeouts
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('❌ Failed to query Quick Battles:', error);
@@ -284,7 +283,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           wins: song.wins,
           losses: song.losses,
           battlesParticipated: song.battlesParticipated,
-          winRate: song.battlesParticipated > 0 ? (song.wins / song.battlesParticipated) * 100 : 0,
+          winRate: (song.wins + song.losses) > 0 ? (song.wins / (song.wins + song.losses)) * 100 : 0,
           totalVolumeGenerated: song.totalVolume,
           updatedAt: song.lastCreatedAt,
         }));

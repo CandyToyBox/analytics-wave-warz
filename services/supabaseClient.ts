@@ -386,7 +386,7 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       songData.battles_participated += 1;
       songData.battle_ids.push(battle.battle_id);
       
-      if (battle.winner_decided) {
+      if (battle.winner_decided && battle.winner_artist_a !== null && battle.winner_artist_a !== undefined) {
         if (isWinner) {
           songData.wins += 1;
         } else {
@@ -446,8 +446,8 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
     battles_participated: data.battles_participated,
     wins: data.wins,
     losses: data.losses,
-    win_rate: data.battles_participated > 0 
-      ? (data.wins / data.battles_participated) * 100 
+    win_rate: (data.wins + data.losses) > 0 
+      ? (data.wins / (data.wins + data.losses)) * 100 
       : 0,
     total_volume_generated: data.total_volume_generated,
     total_trades: data.total_trades,
@@ -547,7 +547,7 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
       totalTrades: toNumber(row.total_trades) ?? toNumber(row.trade_count),
       wins,
       losses,
-      winRate: typeof row.win_rate === 'number' ? row.win_rate : (battlesParticipated > 0 ? (wins / battlesParticipated) * 100 : 0),
+      winRate: (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0,
       totalVolumeGenerated: toNumber(totalVolume),
       queueId: row.queue_id ? String(row.queue_id) : undefined,
       battleId: row.battle_id ? String(row.battle_id) : undefined,
