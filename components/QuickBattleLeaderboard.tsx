@@ -99,10 +99,10 @@ const DatabaseRow: React.FC<{
   );
 };
 
-// Quick battle detection: true flag OR both sides have music links (song vs song)
+// Quick battle detection: require flag AND both music links (authoritative definition)
 const detectQuickBattle = (b: BattleSummary) =>
-  b.isQuickBattle === true ||
-  (!!b.artistA.musicLink && !!b.artistB.musicLink);
+  b.isQuickBattle === true &&
+  !!(b.artistA.musicLink && b.artistB.musicLink);
 
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
   const [search, setSearch] = useState('');
@@ -229,9 +229,23 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
     return () => {
       const quickBattles = battles.filter(detectQuickBattle);
 
+      const extractHandle = (link?: string) => {
+        if (!link) return undefined;
+        const match = link.match(/audius\.co\/([^/]+)/);
+        return match ? match[1] : undefined;
+      };
+
+      const extractTrackName = (link?: string) => {
+        if (!link) return undefined;
+        const parts = link.split('/');
+        const last = parts[parts.length - 1];
+        return last ? decodeURIComponent(last.replace(/\?.*$/, '')) : undefined;
+      };
+
       // Aggregate stats per unique song/handle
       const songMap = new Map<string, {
-        handle: string;
+        trackName: string;
+        handle?: string;
         profilePic?: string;
         wins: number;
         losses: number;
@@ -241,20 +255,25 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
       }>();
 
       for (const b of quickBattles) {
-        const artist1Handle = b.quickBattleArtist1Handle || b.artistA.name;
-        const artist2Handle = b.quickBattleArtist2Handle || b.artistB.name;
+        const artist1Handle = b.quickBattleArtist1Handle || extractHandle(b.artistA.musicLink);
+        const artist2Handle = b.quickBattleArtist2Handle || extractHandle(b.artistB.musicLink);
+        const track1Name = extractTrackName(b.artistA.musicLink) || b.artistA.name;
+        const track2Name = extractTrackName(b.artistB.musicLink) || b.artistB.name;
         const vol1 = b.artistASolBalance || 0;
         const vol2 = b.artistBSolBalance || 0;
         const decided = b.winnerDecided;
         const artistAIsWinner = b.winnerArtistA ?? (vol1 >= vol2);
 
         const upsert = (
-          handle: string,
+          trackName: string | undefined,
+          handle: string | undefined,
           pic: string | undefined,
           isWinner: boolean,
           vol: number
         ) => {
-          const prev = songMap.get(handle) ?? {
+          const key = (trackName || handle || 'unknown').toLowerCase();
+          const prev = songMap.get(key) ?? {
+            trackName: trackName || handle || 'Unknown Track',
             handle,
             profilePic: pic,
             wins: 0,
@@ -262,6 +281,8 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
             battlesParticipated: 0,
             totalVolume: 0,
           };
+          prev.trackName = prev.trackName || trackName || handle || 'Unknown Track';
+          prev.handle = prev.handle || handle;
           prev.battlesParticipated++;
           prev.totalVolume += vol;
           if (decided) {
@@ -271,19 +292,19 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
           prev.lastCreatedAt = prev.lastCreatedAt && prev.lastCreatedAt > b.createdAt
             ? prev.lastCreatedAt
             : b.createdAt;
-          songMap.set(handle, prev);
+          songMap.set(key, prev);
         };
 
-        if (artist1Handle) upsert(artist1Handle, b.quickBattleArtist1ProfilePic || b.artistA.avatar, artistAIsWinner, vol1);
-        if (artist2Handle) upsert(artist2Handle, b.quickBattleArtist2ProfilePic || b.artistB.avatar, !artistAIsWinner, vol2);
+        if (track1Name) upsert(track1Name, artist1Handle, b.quickBattleArtist1ProfilePic || b.artistA.avatar, artistAIsWinner, vol1);
+        if (track2Name) upsert(track2Name, artist2Handle, b.quickBattleArtist2ProfilePic || b.artistB.avatar, !artistAIsWinner, vol2);
       }
 
       return Array.from(songMap.values())
         .sort((a, b) => b.totalVolume - a.totalVolume)
         .map((song, index) => ({
-          id: `fallback-${song.handle}-${index}`,
-          trackName: song.handle,
-          audiusHandle: song.handle,
+          id: `fallback-${song.trackName}-${index}`,
+          trackName: song.trackName,
+          audiusHandle: song.handle || song.trackName,
           audiusProfilePic: song.profilePic,
           wins: song.wins,
           losses: song.losses,
@@ -300,9 +321,9 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   const mergedEntries = useMemo(() => {
     const byHandle = new Map<string, QuickBattleLeaderboardEntry>();
     const makeKey = (e: QuickBattleLeaderboardEntry) => {
-      const handle = e.audiusHandle?.toLowerCase() ?? e.trackName?.toLowerCase() ?? '';
-      // Keys combine stable id + handle/track to avoid collisions across sources
-      return `${e.id || 'unknown'}|${handle}`;
+      const handle = e.audiusHandle?.toLowerCase() ?? '';
+      const track = e.trackName?.toLowerCase() ?? '';
+      return handle || track || e.battleId?.toLowerCase() || e.queueId?.toLowerCase() || e.id?.toString().toLowerCase() || '';
     };
 
     fallbackEntries.forEach((e) => {
