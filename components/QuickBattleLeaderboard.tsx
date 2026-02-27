@@ -106,7 +106,6 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   const { data: quickEntries = [], isFetching } = useQuickBattleLeaderboard();
   const { refreshQuickBattles } = useRefreshLeaderboards();
-  const isDatabaseMode = quickEntries.length > 0;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -225,28 +224,70 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   const mapFallback = useMemo(() => {
     return () => {
       const quickBattles = battles.filter(b => b.isQuickBattle);
-      return quickBattles.map((b, index) => ({
-        id: b.id || `quick-${index}`,
-        queueId: b.quickBattleQueueId,
-        battleId: b.battleId,
-        createdAt: b.createdAt,
-        status: b.status,
-        artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
-        artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
-        artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
-        artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
-        artist1Score: b.artistASolBalance || 0,
-        artist2Score: b.artistBSolBalance || 0,
-        totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
-        // Prefer explicit winner flag, otherwise fall back to balance comparison
-        winnerHandle: (() => {
-          if (!b.winnerDecided) return undefined;
-          const artistAIsWinner = b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0));
-          return artistAIsWinner
-            ? (b.quickBattleArtist1Handle || b.artistA.name)
-            : (b.quickBattleArtist2Handle || b.artistB.name);
-        })(),
-      }));
+
+      // Aggregate stats per unique song/handle
+      const songMap = new Map<string, {
+        handle: string;
+        profilePic?: string;
+        wins: number;
+        losses: number;
+        battlesParticipated: number;
+        totalVolume: number;
+        lastCreatedAt?: string;
+      }>();
+
+      for (const b of quickBattles) {
+        const artist1Handle = b.quickBattleArtist1Handle || b.artistA.name;
+        const artist2Handle = b.quickBattleArtist2Handle || b.artistB.name;
+        const vol1 = b.artistASolBalance || 0;
+        const vol2 = b.artistBSolBalance || 0;
+        const decided = b.winnerDecided;
+        const artistAIsWinner = b.winnerArtistA ?? (vol1 >= vol2);
+
+        const upsert = (
+          handle: string,
+          pic: string | undefined,
+          isWinner: boolean,
+          vol: number
+        ) => {
+          const prev = songMap.get(handle) ?? {
+            handle,
+            profilePic: pic,
+            wins: 0,
+            losses: 0,
+            battlesParticipated: 0,
+            totalVolume: 0,
+          };
+          prev.battlesParticipated++;
+          prev.totalVolume += vol;
+          if (decided) {
+            if (isWinner) prev.wins++;
+            else prev.losses++;
+          }
+          prev.lastCreatedAt = prev.lastCreatedAt && prev.lastCreatedAt > b.createdAt
+            ? prev.lastCreatedAt
+            : b.createdAt;
+          songMap.set(handle, prev);
+        };
+
+        if (artist1Handle) upsert(artist1Handle, b.quickBattleArtist1ProfilePic || b.artistA.avatar, artistAIsWinner, vol1);
+        if (artist2Handle) upsert(artist2Handle, b.quickBattleArtist2ProfilePic || b.artistB.avatar, !artistAIsWinner, vol2);
+      }
+
+      return Array.from(songMap.values())
+        .sort((a, b) => b.totalVolume - a.totalVolume)
+        .map((song, index) => ({
+          id: `fallback-${song.handle}-${index}`,
+          trackName: song.handle,
+          audiusHandle: song.handle,
+          audiusProfilePic: song.profilePic,
+          wins: song.wins,
+          losses: song.losses,
+          battlesParticipated: song.battlesParticipated,
+          winRate: song.battlesParticipated > 0 ? (song.wins / song.battlesParticipated) * 100 : 0,
+          totalVolumeGenerated: song.totalVolume,
+          updatedAt: song.lastCreatedAt,
+        }));
     };
   }, [battles]);
 
@@ -350,118 +391,23 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
             <thead className="bg-navy-900 border-b border-navy-700 text-ui-gray text-xs uppercase tracking-wider">
               <tr>
                 <th className="p-4 pl-6 w-16">Rank</th>
-                <th className="p-4">{isDatabaseMode ? 'Track' : 'Matchup'}</th>
+                <th className="p-4">Track</th>
                 <th className="p-4 text-right">Volume</th>
-                <th className="p-4 text-right">{isDatabaseMode ? 'Results' : 'Winner'}</th>
-                <th className="p-4 text-right">{isDatabaseMode ? 'Battles' : 'Queue / Battle'}</th>
-                <th className="p-4 pr-6 text-right">{isDatabaseMode ? 'Updated' : 'Created'}</th>
+                <th className="p-4 text-right">Results</th>
+                <th className="p-4 text-right">Battles</th>
+                <th className="p-4 pr-6 text-right">Updated</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-navy-700">
-              {isDatabaseMode
-                ? filteredEntries.map((entry, index) => (
-                    <DatabaseRow
-                      key={entry.id}
-                      entry={entry}
-                      index={index}
-                      solPrice={solPrice}
-                      formatDate={formatDate}
-                    />
-                  ))
-                : filteredEntries.map((entry, index) => (
-                    <tr key={entry.id} className="hover:bg-navy-700/60 transition-colors">
-                      <td className="p-4 pl-6">
-                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${
-                          index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
-                          index === 1 ? 'bg-slate-300/20 text-slate-300' :
-                          index === 2 ? 'bg-orange-700/20 text-orange-500' :
-                          'text-ui-gray'
-                        }`}>
-                          {index + 1}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-blue/10 border border-navy-700 flex items-center justify-center">
-                              {entry.artist1ProfilePic ? (
-                                <img
-                                  src={entry.artist1ProfilePic}
-                                  alt={entry.artist1Handle}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const img = e.target as HTMLImageElement;
-                                    img.style.display = 'none';
-                                    const fallback = document.createElement('div');
-                                    fallback.className = 'w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold';
-                                    fallback.textContent = (entry.artist1Handle || 'A').slice(0, 2).toUpperCase();
-                                    img.parentElement?.appendChild(fallback);
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold">
-                                  {(entry.artist1Handle || 'A').slice(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-semibold">{entry.artist1Handle || 'Artist A'}</div>
-                              {typeof entry.artist1Score === 'number' && (
-                                <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist1Score)}</div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-green/10 border border-navy-700 flex items-center justify-center">
-                              {entry.artist2ProfilePic ? (
-                                <img
-                                  src={entry.artist2ProfilePic}
-                                  alt={entry.artist2Handle}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const img = e.target as HTMLImageElement;
-                                    img.style.display = 'none';
-                                    const fallback = document.createElement('div');
-                                    fallback.className = 'w-full h-full flex items-center justify-center text-xs text-wave-green font-bold';
-                                    fallback.textContent = (entry.artist2Handle || 'B').slice(0, 2).toUpperCase();
-                                    img.parentElement?.appendChild(fallback);
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs text-wave-green font-bold">
-                                  {(entry.artist2Handle || 'B').slice(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-semibold">{entry.artist2Handle || 'Artist B'}</div>
-                              {typeof entry.artist2Score === 'number' && (
-                                <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist2Score)}</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="font-mono text-slate-200">{formatSol(entry.totalVolume || 0)}</div>
-                        <div className="text-[10px] text-ui-gray">{formatUsd(entry.totalVolume || 0, solPrice)}</div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-navy-900 border border-navy-700 text-xs text-white">
-                          <Trophy size={12} className="text-yellow-400" />
-                          {entry.winnerHandle || 'Pending'}
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="text-xs text-ui-gray">Queue: {entry.queueId || '—'}</div>
-                        <div className="text-xs text-ui-gray mt-1">Battle: {entry.battleId || '—'}</div>
-                      </td>
-                      <td className="p-4 pr-6 text-right text-ui-gray text-xs">
-                        <div>{formatDate(entry.createdAt)}</div>
-                        {entry.status && <div className="mt-1 text-white font-semibold">{entry.status}</div>}
-                      </td>
-                    </tr>
-                  ))}
+              {filteredEntries.map((entry, index) => (
+                <DatabaseRow
+                  key={entry.id}
+                  entry={entry}
+                  index={index}
+                  solPrice={solPrice}
+                  formatDate={formatDate}
+                />
+              ))}
 
               {!loading && filteredEntries.length === 0 && (
                 <tr>
