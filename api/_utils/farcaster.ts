@@ -65,7 +65,7 @@ export async function postToFarcaster(
 
     return {
       success: false,
-      error: 'Farcaster posting not yet implemented. See api/utils/farcaster.ts'
+      error: 'Farcaster posting not yet implemented. See api/_utils/farcaster.ts'
     };
   } catch (error) {
     console.error('Failed to post to Farcaster:', error);
