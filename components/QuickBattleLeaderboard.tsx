@@ -99,6 +99,11 @@ const DatabaseRow: React.FC<{
   );
 };
 
+// Quick battle detection: true flag OR both sides have music links (song vs song)
+const detectQuickBattle = (b: BattleSummary) =>
+  b.isQuickBattle === true ||
+  (!!b.artistA.musicLink && !!b.artistB.musicLink);
+
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
   const [search, setSearch] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -222,7 +227,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
 
   const mapFallback = useMemo(() => {
     return () => {
-      const quickBattles = battles.filter(b => b.isQuickBattle);
+      const quickBattles = battles.filter(detectQuickBattle);
 
       // Aggregate stats per unique song/handle
       const songMap = new Map<string, {
@@ -291,10 +296,71 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   }, [battles]);
 
   const fallbackEntries = useMemo(() => mapFallback(), [mapFallback]);
+
+  const mergedEntries = useMemo(() => {
+    const byHandle = new Map<string, QuickBattleLeaderboardEntry>();
+    const makeKey = (e: QuickBattleLeaderboardEntry) => {
+      const handle = e.audiusHandle?.toLowerCase() ?? e.trackName?.toLowerCase() ?? '';
+      // Keys combine stable id + handle/track to avoid collisions across sources
+      return `${e.id || 'unknown'}|${handle}`;
+    };
+
+    fallbackEntries.forEach((e) => {
+      const key = makeKey(e);
+      if (key) byHandle.set(key, e);
+    });
+    quickEntries.forEach((e) => {
+      const key = makeKey(e);
+      if (!key) return;
+      const existing = byHandle.get(key);
+      if (!existing) {
+        byHandle.set(key, e);
+        return;
+      }
+
+      type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+      const merged: Mutable<QuickBattleLeaderboardEntry> = { ...existing };
+
+      type NumericKey = 'wins' | 'losses' | 'battlesParticipated' | 'totalVolumeGenerated' | 'totalVolume' | 'totalTrades';
+      const additiveKeys: NumericKey[] = [
+        'wins',
+        'losses',
+        'battlesParticipated',
+        'totalVolumeGenerated',
+        'totalVolume',
+        'totalTrades',
+      ];
+
+      additiveKeys.forEach((k: NumericKey) => {
+        const a = typeof merged[k] === 'number' ? merged[k] : 0;
+        const b = typeof e[k] === 'number' ? e[k] as number : 0;
+        const sum = a + b;
+        if (sum > 0) merged[k] = sum as number;
+      });
+
+      Object.entries(e).forEach(([k, v]) => {
+        const keyName = k as keyof QuickBattleLeaderboardEntry;
+        if (additiveKeys.includes(keyName)) return;
+        if (v !== undefined && v !== null) merged[keyName] = v as QuickBattleLeaderboardEntry[keyof QuickBattleLeaderboardEntry];
+      });
+      byHandle.set(key, merged);
+    });
+    return Array.from(byHandle.values());
+  }, [fallbackEntries, quickEntries]);
+
   const hasDatabaseEntries = quickEntries.length > 0;
-  const entries = hasDatabaseEntries ? quickEntries : fallbackEntries;
-  const dataSource: 'Database' | 'Fallback' | 'Empty' =
-    hasDatabaseEntries ? 'Database' : (fallbackEntries.length > 0 ? 'Fallback' : 'Empty');
+  const entries = mergedEntries;
+  let dataSource: 'Database' | 'Fallback' | 'Mixed' | 'Empty';
+  if (entries.length === 0) dataSource = 'Empty';
+  else if (hasDatabaseEntries && fallbackEntries.length > 0) dataSource = 'Mixed';
+  else if (hasDatabaseEntries) dataSource = 'Database';
+  else dataSource = 'Fallback';
+  const dataSourceLabel = (() => {
+    if (dataSource === 'Database') return 'Using cached Supabase view';
+    if (dataSource === 'Mixed') return 'Merged Supabase + live quick battle data';
+    if (dataSource === 'Fallback') return 'Using live quick battle data';
+    return 'No quick battles yet';
+  })();
   const loading = isFetching && !hasDatabaseEntries;
 
   const filteredEntries = useMemo(() => {
@@ -331,7 +397,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
             Quick Battle Leaderboard
           </div>
           <div className="text-xs text-ui-gray mt-1">
-            {dataSource === 'Database' ? 'Using cached Supabase view' : dataSource === 'Fallback' ? 'Using live quick battle data' : 'No quick battles yet'}
+            {dataSourceLabel}
           </div>
         </div>
 

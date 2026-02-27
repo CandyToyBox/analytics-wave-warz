@@ -54,9 +54,19 @@ const isValidBattle = (b: BattleSummary): boolean => {
   return true;
 };
 
+const LEADERBOARD_TABS = ['artists', 'traders', 'quickBattles', 'community'] as const;
+type LeaderboardTab = typeof LEADERBOARD_TABS[number];
+const isLeaderboardTab = (value: string | null): value is LeaderboardTab =>
+  value !== null && (LEADERBOARD_TABS as readonly string[]).includes(value);
+
 export default function App() {
   const [currentView, setCurrentView] = useState<'grid' | 'events' | 'dashboard' | 'replay' | 'leaderboard' | 'trader'>('grid');
-  const [leaderboardTab, setLeaderboardTab] = useState<'artists' | 'traders' | 'quickBattles' | 'community'>('artists');
+  const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>(() => {
+    if (typeof window === 'undefined') return 'artists';
+    const stored = localStorage.getItem('ww_leaderboard_tab');
+    if (isLeaderboardTab(stored)) return stored;
+    return 'artists';
+  });
   const [selectedBattle, setSelectedBattle] = useState<BattleState | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<BattleEvent | null>(null);
   const [traderStats, setTraderStats] = useState<TraderProfileStats | null>(null);
@@ -96,6 +106,14 @@ export default function App() {
 
 
   const events = useMemo(() => groupBattlesIntoEvents(validLibrary), [validLibrary]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ww_leaderboard_tab', leaderboardTab);
+    } catch {
+      // ignore storage errors
+    }
+  }, [leaderboardTab]);
 
   useEffect(() => {
     if (pollingRef.current) clearInterval(pollingRef.current);

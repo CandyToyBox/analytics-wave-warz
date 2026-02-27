@@ -353,6 +353,26 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       };
     };
 
+    // Determine scores and winner
+    // Precedence: prefer on-chain totals, fall back to pool snapshots, then 0. Nullish coalescing preserves legitimate zeros.
+    const score1 = battle.total_volume_a ?? battle.artist1_pool ?? 0;
+    const score2 = battle.total_volume_b ?? battle.artist2_pool ?? 0;
+
+    const isArtistWinner = (checkArtistA: boolean) => {
+      if (battle.winner_artist_a === true) return checkArtistA;
+      if (battle.winner_artist_a === false) return !checkArtistA;
+      if (battle.winner_decided && (battle.winner_artist_a ?? null) === null) {
+        if (score1 === score2) return false; // tie: no winner
+        return checkArtistA ? score1 > score2 : score2 > score1;
+      }
+      return false;
+    };
+
+    const winner1 = isArtistWinner(true);
+    const winner2 = isArtistWinner(false);
+
+    const isTie = battle.winner_decided && !winner1 && !winner2;
+
     // Process both tracks in the battle
     const track1 = extractTrackInfo(battle.artist1_name, battle.artist1_music_link, battle.quick_battle_artist1_audius_profile_pic);
     const track2 = extractTrackInfo(battle.artist2_name, battle.artist2_music_link, battle.quick_battle_artist2_audius_profile_pic);
@@ -386,12 +406,9 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       songData.battles_participated += 1;
       songData.battle_ids.push(battle.battle_id);
       
-      if (battle.winner_decided && battle.winner_artist_a !== null && battle.winner_artist_a !== undefined) {
-        if (isWinner) {
-          songData.wins += 1;
-        } else {
-          songData.losses += 1;
-        }
+      if (battle.winner_decided && !isTie) {
+        if (isWinner) songData.wins += 1;
+        else songData.losses += 1;
       }
 
       // Add volume
@@ -424,12 +441,6 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
         songData.image_url = battle.image_url;
       }
     };
-
-    // Determine scores and winner
-    const score1 = battle.total_volume_a || battle.artist1_pool || 0;
-    const score2 = battle.total_volume_b || battle.artist2_pool || 0;
-    const winner1 = battle.winner_artist_a === true;
-    const winner2 = battle.winner_artist_a === false;
 
     // Aggregate both tracks
     aggregateTrack(track1, winner1, score1);

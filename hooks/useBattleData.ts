@@ -136,21 +136,12 @@ export function useArtistLeaderboard(battles: BattleSummary[], solPrice: number)
   return useQuery<ArtistLeaderboardStats[]>({
     queryKey: ['leaderboard', 'artists', battles.length, solPrice],
     queryFn: async () => {
-      try {
-        const cached = await fetchArtistLeaderboardFromDB();
-        if (cached && cached.length > 0) {
-          console.log(`✅ Loaded ${cached.length} artists from database`);
-          return cached;
-        }
-        console.log('No cached artist leaderboard found, computing from battles...');
-      } catch (e) {
-        console.log('Failed to load artist leaderboard from database, computing from battles...', e);
-      }
-
+      // Always compute from battles to ensure community and quick battles are excluded
       if (battles.length === 0) return [];
 
-      // Exclude Quick Battles, Test Battles, and Community Battles from Artist (Featured) Leaderboard
-      const eligible = battles.filter(b => !isBattleSummaryQuick(b) && !isTestBattle(b) && !b.isCommunityBattle);
+      const eligible = battles.filter(
+        (b) => !isBattleSummaryQuick(b) && !isTestBattle(b) && b.isCommunityBattle !== true
+      );
       const estimated = mockEstimateVolumes(eligible) as BattleState[];
       return calculateArtistLeaderboard(estimated, solPrice);
     },
