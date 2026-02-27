@@ -20,8 +20,35 @@ interface CacheEntry {
   data: BattleState;
   timestamp: number;
 }
-const battleCache = new Map<string, CacheEntry>();
-const CACHE_TTL = 300_000; // 5 minutes (Matches database cache validity idea)
+
+const CACHE_TTL = 300_000; // 5 minutes — in-session freshness window
+const STORAGE_CACHE_TTL = 86_400_000; // 24 hours — localStorage eviction window
+const BATTLE_CACHE_LS_KEY = 'wavewarz_battle_cache_v1';
+
+// Load persisted cache from localStorage on startup
+function loadCacheFromStorage(): Map<string, CacheEntry> {
+  try {
+    const raw = localStorage.getItem(BATTLE_CACHE_LS_KEY);
+    if (!raw) return new Map();
+    const entries: [string, CacheEntry][] = JSON.parse(raw);
+    // Drop stale entries on load (older than 24h to keep storage clean)
+    const now = Date.now();
+    return new Map(entries.filter(([, e]) => now - e.timestamp < STORAGE_CACHE_TTL));
+  } catch {
+    return new Map();
+  }
+}
+
+const battleCache = loadCacheFromStorage();
+
+function saveCacheEntry(battleId: string, entry: CacheEntry) {
+  battleCache.set(battleId, entry);
+  try {
+    localStorage.setItem(BATTLE_CACHE_LS_KEY, JSON.stringify([...battleCache.entries()]));
+  } catch {
+    // localStorage can fail if storage quota is exceeded — silently ignore
+  }
+}
 
 // --- HELPERS ---
 
@@ -230,7 +257,7 @@ export async function fetchBattleOnChain(summary: BattleSummary, forceRefresh = 
   };
 
   // E. Update Caches
-  battleCache.set(summary.battleId, { data: result, timestamp: Date.now() });
+  saveCacheEntry(summary.battleId, { data: result, timestamp: Date.now() });
   
   // Fire and forget update to database
   updateBattleDynamicStats(result);

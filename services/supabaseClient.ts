@@ -49,7 +49,8 @@ export const BATTLE_COLUMNS = `
   total_volume_a,
   total_volume_b,
   trade_count,
-  unique_traders
+  unique_traders,
+  last_scanned_at
 `;
 
 // Removed hardcoded 200 battle limit - fetch ALL battles
@@ -98,7 +99,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             color: '#06b6d4',
             avatar: row.image_url,
             wallet: row.artist1_wallet,
-            twitter: row.artist1_twitter
+            twitter: row.artist1_twitter,
+            musicLink: row.artist1_music_link,
           },
           artistB: {
             id: 'B',
@@ -106,7 +108,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             color: '#e879f9',
             avatar: row.image_url,
             wallet: row.artist2_wallet,
-            twitter: row.artist2_twitter
+            twitter: row.artist2_twitter,
+            musicLink: row.artist2_music_link,
           },
           battleDuration: row.battle_duration,
           winnerDecided: row.winner_decided,
@@ -116,6 +119,15 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
           imageUrl: row.image_url,
           streamLink: row.stream_link,
           isCommunityBattle: row.is_community_battle,
+          isQuickBattle: row.is_quick_battle || false,
+          quickBattleQueueId: row.quick_battle_queue_id,
+          isTestBattle: row.is_test_battle || false,
+          // Cached on-chain volume data — populated after blockchain scan
+          totalVolumeA: row.total_volume_a ?? undefined,
+          totalVolumeB: row.total_volume_b ?? undefined,
+          tradeCount: row.trade_count ?? undefined,
+          uniqueTraders: row.unique_traders ?? undefined,
+          lastScannedAt: row.last_scanned_at ?? undefined,
         };
       })
       .filter(Boolean) as BattleSummary[];

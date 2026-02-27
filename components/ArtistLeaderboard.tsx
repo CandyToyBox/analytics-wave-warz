@@ -3,7 +3,7 @@ import { BattleSummary, ArtistLeaderboardStats } from '../types';
 import { calculateArtistLeaderboard } from '../services/artistLeaderboardService';
 import { fetchBattleOnChain } from '../services/solanaService';
 import { formatSol, formatUsd, formatPct } from '../utils';
-import { Music, Disc, Twitter, Loader2, PlayCircle, Check } from 'lucide-react';
+import { Music, Disc, Twitter, Loader2, PlayCircle, Check, Clock } from 'lucide-react';
 import { useArtistLeaderboard as useArtistLeaderboardQuery } from '../hooks/useBattleData';
 
 interface Props {
@@ -11,11 +11,39 @@ interface Props {
     solPrice: number;
 }
 
+const SCAN_CACHE_KEY = 'wavewarz_artist_scan_v1';
+
+interface ScanCache {
+    stats: ArtistLeaderboardStats[];
+    scannedAt: string; // ISO timestamp
+}
+
+function loadScanCache(): ScanCache | null {
+    try {
+        const raw = localStorage.getItem(SCAN_CACHE_KEY);
+        return raw ? (JSON.parse(raw) as ScanCache) : null;
+    } catch {
+        return null;
+    }
+}
+
+function saveScanCache(stats: ArtistLeaderboardStats[], scannedAt: string) {
+    try {
+        localStorage.setItem(SCAN_CACHE_KEY, JSON.stringify({ stats, scannedAt }));
+    } catch {
+        // ignore storage errors
+    }
+}
+
 export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
-    const [stats, setStats] = useState<ArtistLeaderboardStats[]>([]);
+    const cached = loadScanCache();
+    const [stats, setStats] = useState<ArtistLeaderboardStats[]>(cached?.stats ?? []);
+    const [lastScannedAt, setLastScannedAt] = useState<string | null>(cached?.scannedAt ?? null);
     const [isScanning, setIsScanning] = useState(false);
     const [scanProgress, setScanProgress] = useState(0);
-    const [dataOrigin, setDataOrigin] = useState<'Estimated' | 'Database' | 'Live'>('Estimated');
+    const [dataOrigin, setDataOrigin] = useState<'Estimated' | 'Database' | 'Live'>(
+        cached?.stats?.length ? 'Database' : 'Estimated'
+    );
     const { data: cachedStats = [], isFetching: _leaderboardFetching } = useArtistLeaderboardQuery(battles, solPrice);
 
     useEffect(() => {
@@ -56,10 +84,12 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
         }
 
         const refinedStats = calculateArtistLeaderboard(enrichedBattles, solPrice);
+        const now = new Date().toISOString();
         setStats(refinedStats);
+        setLastScannedAt(now);
         setDataOrigin('Live');
         setIsScanning(false);
-
+        saveScanCache(refinedStats, now);
     };
 
     const topArtist = stats[0];
@@ -92,10 +122,18 @@ export const ArtistLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
 
             {/* Data Source Control */}
             <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2 text-xs text-ui-gray">
-                    {dataOrigin === 'Database' && <><Check size={14} className="text-wave-green" /> Loaded from Cache</>}
-                    {dataOrigin === 'Estimated' && <span className="text-orange-400">Viewing Estimated Data</span>}
-                    {dataOrigin === 'Live' && <span className="text-wave-green font-bold">Live On-Chain Data (Synced)</span>}
+                <div className="flex flex-col gap-1 text-xs text-ui-gray">
+                    <div className="flex items-center gap-2">
+                        {dataOrigin === 'Database' && <><Check size={14} className="text-wave-green" /> Loaded from Cache</>}
+                        {dataOrigin === 'Estimated' && <span className="text-orange-400">Viewing Estimated Data</span>}
+                        {dataOrigin === 'Live' && <span className="text-wave-green font-bold">Live On-Chain Data (Synced)</span>}
+                    </div>
+                    {lastScannedAt && (
+                        <div className="flex items-center gap-1 text-ui-gray">
+                            <Clock size={11} />
+                            <span>Last blockchain scan: {new Date(lastScannedAt).toLocaleString()}</span>
+                        </div>
+                    )}
                 </div>
 
                 {isScanning ? (
