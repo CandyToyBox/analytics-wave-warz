@@ -33,6 +33,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { TraderLeaderboard } from './components/TraderLeaderboard';
 import { ArtistLeaderboard } from './components/ArtistLeaderboard';
 import { QuickBattleLeaderboard } from './components/QuickBattleLeaderboard';
+import { CommunityLeaderboard } from './components/CommunityLeaderboard';
 import { WhaleTicker } from './components/WhaleTicker';
 import { MomentumGauge } from './components/MomentumGauge';
 import { ShareButton } from './components/ShareButton';
@@ -53,7 +54,7 @@ const isValidBattle = (b: BattleSummary): boolean => {
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'grid' | 'events' | 'dashboard' | 'replay' | 'leaderboard' | 'trader'>('grid');
-  const [leaderboardTab, setLeaderboardTab] = useState<'artists' | 'traders' | 'quickBattles'>('artists');
+  const [leaderboardTab, setLeaderboardTab] = useState<'artists' | 'traders' | 'quickBattles' | 'community'>('artists');
   const [selectedBattle, setSelectedBattle] = useState<BattleState | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<BattleEvent | null>(null);
   const [traderStats, setTraderStats] = useState<TraderProfileStats | null>(null);
@@ -392,6 +393,15 @@ export default function App() {
                 >
                   Quick Battles
                 </button>
+                <button
+                  onClick={() => setLeaderboardTab('community')}
+                  className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${leaderboardTab === 'community'
+                    ? 'bg-wave-green/20 text-wave-green border border-wave-green/40 shadow-sm'
+                    : 'text-ui-gray hover:text-slate-300'
+                    }`}
+                >
+                  Community
+                </button>
               </div>
             </div>
 
@@ -403,6 +413,9 @@ export default function App() {
             )}
             {leaderboardTab === 'quickBattles' && (
               <QuickBattleLeaderboard battles={validLibrary} solPrice={solPrice} />
+            )}
+            {leaderboardTab === 'community' && (
+              <CommunityLeaderboard solPrice={solPrice} />
             )}
           </div>
         )}

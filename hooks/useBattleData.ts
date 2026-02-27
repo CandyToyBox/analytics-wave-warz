@@ -11,6 +11,24 @@ import {
   supabase,
 } from '../services/supabaseClient';
 import { calculateArtistLeaderboard, mockEstimateVolumes } from '../services/artistLeaderboardService';
+import { testWallets, testArtistNames } from '../config/battleFilters';
+
+/** Returns true if a BattleSummary is a test battle (flag or config fallback). */
+function isBattleSummaryTest(b: BattleSummary): boolean {
+  if (b.isTestBattle === true) return true;
+  if (b.isTestBattle === false) return false;
+  const wallets = [b.artistA.wallet, b.artistB.wallet];
+  if (wallets.some(w => testWallets.includes(w))) return true;
+  const names = [b.artistA.name, b.artistB.name];
+  if (names.some(n => testArtistNames.includes(n))) return true;
+  return false;
+}
+
+/** Returns true if a BattleSummary is a Quick Battle (flag AND both music links). */
+function isBattleSummaryQuick(b: BattleSummary): boolean {
+  return b.isQuickBattle === true &&
+    !!(b.artistA.musicLink && b.artistB.musicLink);
+}
 
 type BattleSource = 'Supabase' | 'Local';
 
@@ -142,7 +160,9 @@ export function useArtistLeaderboard(battles: BattleSummary[], solPrice: number)
 
       if (battles.length === 0) return [];
 
-      const estimated = mockEstimateVolumes(battles) as BattleState[];
+      // Exclude Quick Battles and Test Battles from Artist Leaderboard
+      const eligible = battles.filter(b => !isBattleSummaryQuick(b) && !isBattleSummaryTest(b));
+      const estimated = mockEstimateVolumes(eligible) as BattleState[];
       return calculateArtistLeaderboard(estimated, solPrice);
     },
     staleTime: 120000,
