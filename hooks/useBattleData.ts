@@ -11,6 +11,14 @@ import {
   supabase,
 } from '../services/supabaseClient';
 import { calculateArtistLeaderboard, mockEstimateVolumes } from '../services/artistLeaderboardService';
+import { isTestBattle } from '../config/battleFilters';
+import { applyBattleCategory } from '../config/battleCategoryMap';
+
+/** Returns true if a BattleSummary is a Quick Battle (flag AND both music links). */
+function isBattleSummaryQuick(b: BattleSummary): boolean {
+  return b.isQuickBattle === true &&
+    !!(b.artistA.musicLink && b.artistB.musicLink);
+}
 
 type BattleSource = 'Supabase' | 'Local';
 
@@ -86,7 +94,7 @@ export function useBattleDetails(battleId: string | null) {
         const battleIdValue = normalizeBattleId(data.battle_id);
         if (!battleIdValue) return null;
 
-        return {
+        const battle: BattleSummary = {
           id: battleIdValue,
           battleId: battleIdValue,
           createdAt: data.created_at,
@@ -116,6 +124,7 @@ export function useBattleDetails(battleId: string | null) {
           streamLink: data.stream_link,
           isCommunityBattle: data.is_community_battle,
         };
+        return applyBattleCategory(battle);
       } catch (e) {
         console.warn('Failed to fetch battle detail', e);
         return null;
@@ -129,20 +138,13 @@ export function useArtistLeaderboard(battles: BattleSummary[], solPrice: number)
   return useQuery<ArtistLeaderboardStats[]>({
     queryKey: ['leaderboard', 'artists', battles.length, solPrice],
     queryFn: async () => {
-      try {
-        const cached = await fetchArtistLeaderboardFromDB();
-        if (cached && cached.length > 0) {
-          console.log(`✅ Loaded ${cached.length} artists from database`);
-          return cached;
-        }
-        console.log('No cached artist leaderboard found, computing from battles...');
-      } catch (e) {
-        console.log('Failed to load artist leaderboard from database, computing from battles...', e);
-      }
-
+      // Always compute from battles to ensure community and quick battles are excluded
       if (battles.length === 0) return [];
 
-      const estimated = mockEstimateVolumes(battles) as BattleState[];
+      const eligible = battles.filter(
+        (b) => !isBattleSummaryQuick(b) && !isTestBattle(b) && b.isCommunityBattle !== true
+      );
+      const estimated = mockEstimateVolumes(eligible) as BattleState[];
       return calculateArtistLeaderboard(estimated, solPrice);
     },
     staleTime: 120000,

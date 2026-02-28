@@ -1,4 +1,5 @@
 import { BattleSummary } from './types';
+import { applyBattleCategory } from './config/battleCategoryMap';
 
 const RAW_CSV = `id,battle_id,created_at,status,artist1_name,artist2_name,artist1_wallet,artist2_wallet,wavewarz_wallet,artist1_music_link,artist2_music_link,image_url,artist1_pool,artist2_pool,artist1_supply,artist2_supply,battle_duration,winner_decided,winner_artist_a,artist1_twitter,artist2_twitter,stream_link,creator_wallet,split_wallet_address,is_community_battle,community_round_id,is_quick_battle,quick_battle_queue_id,is_test_battle
 f3038630-a39b-4221-a2d0-719c8c8ace4a,1748420717,2025-05-28 08:25:42.341371+00,Active,RaWavez x Hurric4n3Ike,StretchWavez x Hurric4n3Ike,4g2wDCUN1WcsMRd2czDSVhxgk5eCLH4CpVLk3thfv5rG,9RbUvEftkY9Q7teDaCYjGs1w5n7318GUaJ1KdLDCQM1B,FNjYtwKVsbQzSmoBgLqa8ZGSJTzexQJi6xmV97iakq37,https://hypeddit.com/evwg2e,https://hypeddit.com/1pqg34,https://htqvtdqcswxwaonkrnck.supabase.co/storage/v1/object/public/battles/v2-battle-1748420717375.png,0,0,0,0,55800,false,null,Hurric4n3Ike,Hurric4n3Ike,null,null,null,false,null,true
@@ -273,7 +274,7 @@ export const getBattleLibrary = (): BattleSummary[] => {
       isTestBattle
     };
 
-    battles.push(battle);
+    battles.push(applyBattleCategory(battle));
   }
 
   return battles.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

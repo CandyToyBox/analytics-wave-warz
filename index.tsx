@@ -9,7 +9,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30000,
-      gcTime: 300000,
+      gcTime: 86_400_000, // 24 hours — keep cached data alive across tab switches
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       retry: 1,

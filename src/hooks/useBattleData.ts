@@ -10,6 +10,7 @@ import type { Battle, BattleWithMetrics, QuickBattleArtistStats } from '../utils
 import {
   enrichBattlesWithMetrics,
   calculateGlobalArtistStats,
+  calculateCommunityArtistStats,
 } from '../utils/priceCalculations';
 import { BATTLE_COLUMNS } from '../../services/supabaseClient';
 
@@ -172,7 +173,7 @@ export function useGlobalArtistLeaderboard() {
         if (error) {
           console.warn('⚠️ Pre-computed leaderboard not available, computing client-side...');
 
-          // Fallback: compute from battles
+          // Fallback: compute from battles (Main + Community only, no Quick/Test)
           const { data: battles } = await supabase
             .from('battles')
             .select(BATTLE_COLUMNS);
@@ -268,7 +269,53 @@ export function useMainEventsArtistLeaderboard() {
 }
 
 // ============================================================================
-// HOOK 8: Trader Leaderboard (READ-ONLY)
+// HOOK 8: Community Leaderboard (READ-ONLY)
+// ============================================================================
+
+export function useCommunityLeaderboard() {
+  return useQuery({
+    queryKey: ['leaderboard', 'artists', 'community'],
+    queryFn: async () => {
+      console.log('🤝 Fetching COMMUNITY artist leaderboard (READ-ONLY)...');
+      
+      try {
+        // ✅ READ-ONLY from public view - NEVER write to this table!
+        const { data, error } = await supabase
+          .from('v_community_leaderboard_public')
+          .select('*')
+          .order('total_sol_earned', { ascending: false })
+          .limit(100);
+
+        if (error) {
+          console.warn('⚠️ Community leaderboard view not available, computing client-side...');
+
+          // Fallback: compute from community battles (exclude test battles)
+          const { data: battles } = await supabase
+            .from('battles')
+            .select(BATTLE_COLUMNS)
+            .eq('is_community_battle', true);
+          
+          if (battles) {
+            return calculateCommunityArtistStats(battles as Battle[]);
+          }
+          
+          return [];
+        }
+        
+        console.log(`✅ Loaded ${data?.length || 0} community artists`);
+        return data || [];
+      } catch (error) {
+        console.error('❌ Failed to fetch community leaderboard:', error);
+        return [];
+      }
+    },
+    staleTime: 120000,
+    retry: 1,
+  });
+}
+
+// ============================================================================
+// HOOK 9: Trader Leaderboard (READ-ONLY)
 // ============================================================================
 
 export function useTraderLeaderboard() {
@@ -303,7 +350,7 @@ export function useTraderLeaderboard() {
 }
 
 // ============================================================================
-// HOOK 9: Dashboard Summary Stats
+// HOOK 10: Dashboard Summary Stats
 // ============================================================================
 
 export function useDashboardStats() {

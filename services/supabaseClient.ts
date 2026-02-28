@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats, QuickBattleLeaderboardEntry } from '../types';
 import { batchFetchAudiusTrackInfo } from './audiusService';
+import { applyBattleCategory } from '../config/battleCategoryMap';
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
@@ -49,7 +50,8 @@ export const BATTLE_COLUMNS = `
   total_volume_a,
   total_volume_b,
   trade_count,
-  unique_traders
+  unique_traders,
+  last_scanned_at
 `;
 
 // Removed hardcoded 200 battle limit - fetch ALL battles
@@ -69,6 +71,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
     const { data, error } = await supabase
       .from('battles')
       .select(BATTLE_COLUMNS)
+      .neq('is_test_battle', true)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -87,7 +90,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
         if (!battleId) return null;
 
-        return {
+        const battle: BattleSummary = {
           id: battleId,
           battleId,
           createdAt: row.created_at,
@@ -98,7 +101,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             color: '#06b6d4',
             avatar: row.image_url,
             wallet: row.artist1_wallet,
-            twitter: row.artist1_twitter
+            twitter: row.artist1_twitter,
+            musicLink: row.artist1_music_link,
           },
           artistB: {
             id: 'B',
@@ -106,7 +110,8 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
             color: '#e879f9',
             avatar: row.image_url,
             wallet: row.artist2_wallet,
-            twitter: row.artist2_twitter
+            twitter: row.artist2_twitter,
+            musicLink: row.artist2_music_link,
           },
           battleDuration: row.battle_duration,
           winnerDecided: row.winner_decided,
@@ -116,7 +121,17 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
           imageUrl: row.image_url,
           streamLink: row.stream_link,
           isCommunityBattle: row.is_community_battle,
+          isQuickBattle: row.is_quick_battle || false,
+          quickBattleQueueId: row.quick_battle_queue_id,
+          isTestBattle: row.is_test_battle || false,
+          // Cached on-chain volume data — populated after blockchain scan
+          totalVolumeA: row.total_volume_a ?? undefined,
+          totalVolumeB: row.total_volume_b ?? undefined,
+          tradeCount: row.trade_count ?? undefined,
+          uniqueTraders: row.unique_traders ?? undefined,
+          lastScannedAt: row.last_scanned_at ?? undefined,
         };
+        return applyBattleCategory(battle);
       })
       .filter(Boolean) as BattleSummary[];
 
@@ -340,6 +355,26 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       };
     };
 
+    // Determine scores and winner
+    // Precedence: prefer on-chain totals, fall back to pool snapshots, then 0. Nullish coalescing preserves legitimate zeros.
+    const score1 = battle.total_volume_a ?? battle.artist1_pool ?? 0;
+    const score2 = battle.total_volume_b ?? battle.artist2_pool ?? 0;
+
+    const isArtistWinner = (checkArtistA: boolean) => {
+      if (battle.winner_artist_a === true) return checkArtistA;
+      if (battle.winner_artist_a === false) return !checkArtistA;
+      if (battle.winner_decided && (battle.winner_artist_a ?? null) === null) {
+        if (score1 === score2) return false; // tie: no winner
+        return checkArtistA ? score1 > score2 : score2 > score1;
+      }
+      return false;
+    };
+
+    const winner1 = isArtistWinner(true);
+    const winner2 = isArtistWinner(false);
+
+    const isTie = battle.winner_decided && !winner1 && !winner2;
+
     // Process both tracks in the battle
     const track1 = extractTrackInfo(battle.artist1_name, battle.artist1_music_link, battle.quick_battle_artist1_audius_profile_pic);
     const track2 = extractTrackInfo(battle.artist2_name, battle.artist2_music_link, battle.quick_battle_artist2_audius_profile_pic);
@@ -373,12 +408,9 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       songData.battles_participated += 1;
       songData.battle_ids.push(battle.battle_id);
       
-      if (battle.winner_decided) {
-        if (isWinner) {
-          songData.wins += 1;
-        } else {
-          songData.losses += 1;
-        }
+      if (battle.winner_decided && !isTie) {
+        if (isWinner) songData.wins += 1;
+        else songData.losses += 1;
       }
 
       // Add volume
@@ -412,12 +444,6 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
       }
     };
 
-    // Determine scores and winner
-    const score1 = battle.total_volume_a || battle.artist1_pool || 0;
-    const score2 = battle.total_volume_b || battle.artist2_pool || 0;
-    const winner1 = battle.winner_artist_a === true;
-    const winner2 = battle.winner_artist_a === false;
-
     // Aggregate both tracks
     aggregateTrack(track1, winner1, score1);
     aggregateTrack(track2, winner2, score2);
@@ -433,8 +459,8 @@ async function aggregateQuickBattlesBySong(battles: any[]): Promise<any[]> {
     battles_participated: data.battles_participated,
     wins: data.wins,
     losses: data.losses,
-    win_rate: data.battles_participated > 0 
-      ? (data.wins / data.battles_participated) * 100 
+    win_rate: (data.wins + data.losses) > 0 
+      ? (data.wins / (data.wins + data.losses)) * 100 
       : 0,
     total_volume_generated: data.total_volume_generated,
     total_trades: data.total_trades,
@@ -534,7 +560,7 @@ function mapQuickBattleLeaderboardData(data: any[]): QuickBattleLeaderboardEntry
       totalTrades: toNumber(row.total_trades) ?? toNumber(row.trade_count),
       wins,
       losses,
-      winRate: typeof row.win_rate === 'number' ? row.win_rate : (battlesParticipated > 0 ? (wins / battlesParticipated) * 100 : 0),
+      winRate: (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0,
       totalVolumeGenerated: toNumber(totalVolume),
       queueId: row.queue_id ? String(row.queue_id) : undefined,
       battleId: row.battle_id ? String(row.battle_id) : undefined,

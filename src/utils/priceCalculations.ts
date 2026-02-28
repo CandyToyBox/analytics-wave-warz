@@ -1,7 +1,9 @@
 // ============================================================================
 // WAVEWARZ ANALYTICS - CORRECTED PRICE CALCULATIONS
 // ============================================================================
-// CRITICAL FIX: Quick Battles identified by Audius links, not duration!
+// Quick Battles require is_quick_battle === true AND both Audius music links.
+
+import { testWallets, testArtistNames } from '../../config/battleFilters';
 
 // ============================================================================
 // CONSTANTS
@@ -40,9 +42,13 @@ export interface Battle {
   artist2_twitter: string | null;
   is_community_battle: boolean | null;
   
-  // ✅ CRITICAL: Audius links identify Quick Battles!
+  // ✅ CRITICAL: Audius links identify Quick Battles (together with is_quick_battle flag)!
   artist1_music_link: string | null;
   artist2_music_link: string | null;
+
+  // DB flags for battle type and test detection
+  is_quick_battle?: boolean | null;
+  is_test_battle?: boolean | null;
   
   // Battle type labels (from database)
   battle_type?: 'Quick Battle' | 'Main Battle' | 'Community Battle' | null;
@@ -136,16 +142,32 @@ export function clearSolPriceCache(): void {
 }
 
 // ============================================================================
-// BATTLE TYPE IDENTIFICATION (CORRECTED!)
+// BATTLE TYPE IDENTIFICATION
 // ============================================================================
 
 /**
- * ✅ CORRECTED: Quick Battles are identified by Audius links!
- * ALL Quick Battles have artist1_music_link and artist2_music_link
+ * Quick Battle detection uses the authoritative DB flag AND requires both
+ * Audius music links to be present (song vs song).
  */
 export function isQuickBattle(battle: Battle): boolean {
-  // Quick Battle = Has Audius links
-  return !!(battle.artist1_music_link && battle.artist2_music_link);
+  return battle.is_quick_battle === true &&
+    !!(battle.artist1_music_link && battle.artist2_music_link);
+}
+
+/**
+ * Returns true if the battle is a test battle.
+ * Uses the is_test_battle flag when present; falls back to checking
+ * wallets and artist names from the central config.
+ */
+export function isTestBattle(battle: Battle): boolean {
+  if (battle.is_test_battle === true) return true;
+  if (battle.is_test_battle === false) return false;
+  // Fallback: config-based name/wallet check for records without the flag
+  const wallets = [battle.artist1_wallet, battle.artist2_wallet];
+  if (wallets.some(w => testWallets.includes(w))) return true;
+  const names = [battle.artist1_name, battle.artist2_name];
+  if (names.some(n => testArtistNames.includes(n))) return true;
+  return false;
 }
 
 /**
@@ -184,6 +206,10 @@ export function filterMainBattles(battles: Battle[]): Battle[] {
 
 export function filterCommunityBattles(battles: Battle[]): Battle[] {
   return battles.filter(isCommunityBattle);
+}
+
+export function filterTestBattles(battles: Battle[]): Battle[] {
+  return battles.filter(b => !isTestBattle(b));
 }
 
 // ============================================================================
@@ -292,16 +318,14 @@ export async function enrichBattlesWithMetrics(battles: Battle[]): Promise<Battl
 // ============================================================================
 
 /**
- * Calculate GLOBAL artist leaderboard (all battle types)
+ * Core artist stats computation - processes a pre-filtered list of battles.
+ * Callers are responsible for filtering to the correct battle subset.
  */
-export async function calculateGlobalArtistStats(battles: Battle[]): Promise<ArtistStats[]> {
-  console.log(`🌍 Calculating GLOBAL artist leaderboard from ${battles.length} battles...`);
-  
+async function computeArtistStatsFromBattles(battles: Battle[]): Promise<ArtistStats[]> {
   const solPrice = await getCurrentSolPrice();
   const artistStatsMap = new Map<string, ArtistStats>();
-  
+
   battles.forEach(battle => {
-    // Process Artist 1
     processArtist(artistStatsMap, solPrice, {
       wallet: battle.artist1_wallet,
       name: battle.artist1_name,
@@ -311,8 +335,6 @@ export async function calculateGlobalArtistStats(battles: Battle[]): Promise<Art
       won: battle.winner_decided && battle.winner_artist_a === true,
       lost: battle.winner_decided && battle.winner_artist_a === false,
     });
-    
-    // Process Artist 2
     processArtist(artistStatsMap, solPrice, {
       wallet: battle.artist2_wallet,
       name: battle.artist2_name,
@@ -323,26 +345,48 @@ export async function calculateGlobalArtistStats(battles: Battle[]): Promise<Art
       lost: battle.winner_decided && battle.winner_artist_a === true,
     });
   });
-  
+
   return finalizeArtistStats(artistStatsMap);
 }
 
 /**
- * Calculate QUICK BATTLES artist leaderboard
+ * Calculate GLOBAL artist leaderboard (Main + Community battles only).
+ * Excludes Quick Battles (which show song titles, not artist names) and Test Battles.
  */
-export async function calculateQuickBattlesArtistStats(battles: Battle[]): Promise<ArtistStats[]> {
-  const quickBattles = filterQuickBattles(battles);
-  console.log(`⚡ Calculating QUICK BATTLES leaderboard from ${quickBattles.length} battles...`);
-  return calculateGlobalArtistStats(quickBattles);
+export async function calculateGlobalArtistStats(battles: Battle[]): Promise<ArtistStats[]> {
+  const eligible = battles.filter(b => !isQuickBattle(b) && !isTestBattle(b));
+  console.log(`🌍 Calculating GLOBAL artist leaderboard from ${eligible.length} battles (of ${battles.length} total)...`);
+  return computeArtistStatsFromBattles(eligible);
 }
 
 /**
- * Calculate MAIN EVENTS artist leaderboard (excludes quick + community)
+ * Calculate QUICK BATTLES leaderboard.
+ * Note: artist1_name/artist2_name contain SONG TITLES in Quick Battles, not artist names.
+ * Excludes test battles.
+ */
+export async function calculateQuickBattlesArtistStats(battles: Battle[]): Promise<ArtistStats[]> {
+  const eligible = filterQuickBattles(battles).filter(b => !isTestBattle(b));
+  console.log(`⚡ Calculating QUICK BATTLES leaderboard from ${eligible.length} battles...`);
+  return computeArtistStatsFromBattles(eligible);
+}
+
+/**
+ * Calculate COMMUNITY BATTLES artist leaderboard (excludes test battles).
+ * Follows the same event grouping rules as Main Events.
+ */
+export async function calculateCommunityArtistStats(battles: Battle[]): Promise<ArtistStats[]> {
+  const eligible = filterCommunityBattles(battles).filter(b => !isTestBattle(b));
+  console.log(`🤝 Calculating COMMUNITY leaderboard from ${eligible.length} battles...`);
+  return computeArtistStatsFromBattles(eligible);
+}
+
+/**
+ * Calculate MAIN EVENTS artist leaderboard (excludes quick + community + test)
  */
 export async function calculateMainEventsArtistStats(battles: Battle[]): Promise<ArtistStats[]> {
-  const mainBattles = filterMainBattles(battles);
-  console.log(`🏆 Calculating MAIN EVENTS leaderboard from ${mainBattles.length} battles...`);
-  return calculateGlobalArtistStats(mainBattles);
+  const eligible = filterMainBattles(battles).filter(b => !isTestBattle(b));
+  console.log(`🏆 Calculating MAIN EVENTS leaderboard from ${eligible.length} battles...`);
+  return computeArtistStatsFromBattles(eligible);
 }
 
 // Helper function to process artist data
