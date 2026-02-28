@@ -33,6 +33,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { TraderLeaderboard } from './components/TraderLeaderboard';
 import { ArtistLeaderboard } from './components/ArtistLeaderboard';
 import { QuickBattleLeaderboard } from './components/QuickBattleLeaderboard';
+import { CommunityLeaderboard } from './components/CommunityLeaderboard';
 import { WhaleTicker } from './components/WhaleTicker';
 import { MomentumGauge } from './components/MomentumGauge';
 import { ShareButton } from './components/ShareButton';
@@ -41,19 +42,31 @@ import { InfoTooltip } from './components/InfoTooltip';
 import { fetchBattleOnChain, fetchTraderProfile } from './services/solanaService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAllBattles } from './hooks/useBattleData';
+import { isTestBattle } from './config/battleFilters';
 
 // --- FILTER LOGIC ---
-// Since we now filter by is_test_battle in the database query,
-// we only need basic validation here
+// Exclude test battles (by DB flag, known test wallets/names, or self-battles)
+// and require both artist wallets to be present for non-community battles.
 const isValidBattle = (b: BattleSummary): boolean => {
+  if (isTestBattle(b)) return false;
   if (b.isCommunityBattle) return true;
   if (!b.artistA.wallet || !b.artistB.wallet) return false;
   return true;
 };
 
+const LEADERBOARD_TABS = ['artists', 'traders', 'quickBattles', 'community'] as const;
+type LeaderboardTab = typeof LEADERBOARD_TABS[number];
+const isLeaderboardTab = (value: string | null): value is LeaderboardTab =>
+  value !== null && (LEADERBOARD_TABS as readonly string[]).includes(value);
+
 export default function App() {
   const [currentView, setCurrentView] = useState<'grid' | 'events' | 'dashboard' | 'replay' | 'leaderboard' | 'trader'>('grid');
-  const [leaderboardTab, setLeaderboardTab] = useState<'artists' | 'traders' | 'quickBattles'>('artists');
+  const [leaderboardTab, setLeaderboardTab] = useState<LeaderboardTab>(() => {
+    if (typeof window === 'undefined') return 'artists';
+    const stored = localStorage.getItem('ww_leaderboard_tab');
+    if (isLeaderboardTab(stored)) return stored;
+    return 'artists';
+  });
   const [selectedBattle, setSelectedBattle] = useState<BattleState | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<BattleEvent | null>(null);
   const [traderStats, setTraderStats] = useState<TraderProfileStats | null>(null);
@@ -93,6 +106,14 @@ export default function App() {
 
 
   const events = useMemo(() => groupBattlesIntoEvents(validLibrary), [validLibrary]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ww_leaderboard_tab', leaderboardTab);
+    } catch {
+      // ignore storage errors
+    }
+  }, [leaderboardTab]);
 
   useEffect(() => {
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -392,6 +413,15 @@ export default function App() {
                 >
                   Quick Battles
                 </button>
+                <button
+                  onClick={() => setLeaderboardTab('community')}
+                  className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${leaderboardTab === 'community'
+                    ? 'bg-wave-green/20 text-wave-green border border-wave-green/40 shadow-sm'
+                    : 'text-ui-gray hover:text-slate-300'
+                    }`}
+                >
+                  Community
+                </button>
               </div>
             </div>
 
@@ -403,6 +433,9 @@ export default function App() {
             )}
             {leaderboardTab === 'quickBattles' && (
               <QuickBattleLeaderboard battles={validLibrary} solPrice={solPrice} />
+            )}
+            {leaderboardTab === 'community' && (
+              <CommunityLeaderboard solPrice={solPrice} />
             )}
           </div>
         )}

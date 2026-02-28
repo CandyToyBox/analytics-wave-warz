@@ -21,9 +21,9 @@ const DatabaseRow: React.FC<{
   const totalVolume = entry.totalVolumeGenerated ?? entry.totalVolume ?? 0;
   const wins = entry.wins ?? 0;
   const losses = entry.losses ?? 0;
-  const computedBattles = wins + losses;
-  const battles = entry.battlesParticipated ?? (computedBattles > 0 ? computedBattles : undefined);
-  const winRate = entry.winRate ?? (battles ? (wins / battles) * 100 : undefined);
+  const decidedBattles = wins + losses;
+  const battles = entry.battlesParticipated;
+  const winRate = decidedBattles > 0 ? (wins / decidedBattles) * 100 : undefined;
 
   return (
     <tr className="hover:bg-navy-700/60 transition-colors">
@@ -99,6 +99,11 @@ const DatabaseRow: React.FC<{
   );
 };
 
+// Quick battle detection: require flag AND both music links (authoritative definition)
+const detectQuickBattle = (b: BattleSummary) =>
+  b.isQuickBattle === true &&
+  !!(b.artistA.musicLink && b.artistB.musicLink);
+
 export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) => {
   const [search, setSearch] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -106,7 +111,6 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   const { data: quickEntries = [], isFetching } = useQuickBattleLeaderboard();
   const { refreshQuickBattles } = useRefreshLeaderboards();
-  const isDatabaseMode = quickEntries.length > 0;
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -129,8 +133,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
         .from('battles')
         .select(BATTLE_COLUMNS)
         .eq('is_quick_battle', true)
-        .order('created_at', { ascending: false })
-        .limit(50); // Limit to 50 at a time to avoid timeouts
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('❌ Failed to query Quick Battles:', error);
@@ -224,37 +227,161 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
 
   const mapFallback = useMemo(() => {
     return () => {
-      const quickBattles = battles.filter(b => b.isQuickBattle);
-      return quickBattles.map((b, index) => ({
-        id: b.id || `quick-${index}`,
-        queueId: b.quickBattleQueueId,
-        battleId: b.battleId,
-        createdAt: b.createdAt,
-        status: b.status,
-        artist1Handle: b.quickBattleArtist1Handle || b.artistA.name,
-        artist2Handle: b.quickBattleArtist2Handle || b.artistB.name,
-        artist1ProfilePic: b.quickBattleArtist1ProfilePic || b.artistA.avatar,
-        artist2ProfilePic: b.quickBattleArtist2ProfilePic || b.artistB.avatar,
-        artist1Score: b.artistASolBalance || 0,
-        artist2Score: b.artistBSolBalance || 0,
-        totalVolume: (b.artistASolBalance || 0) + (b.artistBSolBalance || 0),
-        // Prefer explicit winner flag, otherwise fall back to balance comparison
-        winnerHandle: (() => {
-          if (!b.winnerDecided) return undefined;
-          const artistAIsWinner = b.winnerArtistA ?? (b.artistASolBalance >= (b.artistBSolBalance || 0));
-          return artistAIsWinner
-            ? (b.quickBattleArtist1Handle || b.artistA.name)
-            : (b.quickBattleArtist2Handle || b.artistB.name);
-        })(),
-      }));
+      const quickBattles = battles.filter(detectQuickBattle);
+
+      const extractHandle = (link?: string) => {
+        if (!link) return undefined;
+        const match = link.match(/audius\.co\/([^/]+)/);
+        return match ? match[1] : undefined;
+      };
+
+      const extractTrackName = (link?: string) => {
+        if (!link) return undefined;
+        const parts = link.split('/');
+        const last = parts[parts.length - 1];
+        return last ? decodeURIComponent(last.replace(/\?.*$/, '')) : undefined;
+      };
+
+      // Aggregate stats per unique song/handle
+      const songMap = new Map<string, {
+        trackName: string;
+        handle?: string;
+        profilePic?: string;
+        wins: number;
+        losses: number;
+        battlesParticipated: number;
+        totalVolume: number;
+        lastCreatedAt?: string;
+      }>();
+
+      for (const b of quickBattles) {
+        const artist1Handle = b.quickBattleArtist1Handle || extractHandle(b.artistA.musicLink);
+        const artist2Handle = b.quickBattleArtist2Handle || extractHandle(b.artistB.musicLink);
+        const track1Name = extractTrackName(b.artistA.musicLink) || b.artistA.name;
+        const track2Name = extractTrackName(b.artistB.musicLink) || b.artistB.name;
+        const vol1 = b.artistASolBalance || 0;
+        const vol2 = b.artistBSolBalance || 0;
+        const decided = b.winnerDecided;
+        const artistAIsWinner = b.winnerArtistA ?? (vol1 >= vol2);
+
+        const upsert = (
+          trackName: string | undefined,
+          handle: string | undefined,
+          pic: string | undefined,
+          isWinner: boolean,
+          vol: number
+        ) => {
+          const key = (trackName || handle || 'unknown').toLowerCase();
+          const prev = songMap.get(key) ?? {
+            trackName: trackName || handle || 'Unknown Track',
+            handle,
+            profilePic: pic,
+            wins: 0,
+            losses: 0,
+            battlesParticipated: 0,
+            totalVolume: 0,
+          };
+          prev.trackName = prev.trackName || trackName || handle || 'Unknown Track';
+          prev.handle = prev.handle || handle;
+          prev.battlesParticipated++;
+          prev.totalVolume += vol;
+          if (decided) {
+            if (isWinner) prev.wins++;
+            else prev.losses++;
+          }
+          prev.lastCreatedAt = prev.lastCreatedAt && prev.lastCreatedAt > b.createdAt
+            ? prev.lastCreatedAt
+            : b.createdAt;
+          songMap.set(key, prev);
+        };
+
+        if (track1Name) upsert(track1Name, artist1Handle, b.quickBattleArtist1ProfilePic || b.artistA.avatar, artistAIsWinner, vol1);
+        if (track2Name) upsert(track2Name, artist2Handle, b.quickBattleArtist2ProfilePic || b.artistB.avatar, !artistAIsWinner, vol2);
+      }
+
+      return Array.from(songMap.values())
+        .sort((a, b) => b.totalVolume - a.totalVolume)
+        .map((song, index) => ({
+          id: `fallback-${song.trackName}-${index}`,
+          trackName: song.trackName,
+          audiusHandle: song.handle || song.trackName,
+          audiusProfilePic: song.profilePic,
+          wins: song.wins,
+          losses: song.losses,
+          battlesParticipated: song.battlesParticipated,
+          winRate: (song.wins + song.losses) > 0 ? (song.wins / (song.wins + song.losses)) * 100 : 0,
+          totalVolumeGenerated: song.totalVolume,
+          updatedAt: song.lastCreatedAt,
+        }));
     };
   }, [battles]);
 
   const fallbackEntries = useMemo(() => mapFallback(), [mapFallback]);
+
+  const mergedEntries = useMemo(() => {
+    const byHandle = new Map<string, QuickBattleLeaderboardEntry>();
+    const makeKey = (e: QuickBattleLeaderboardEntry) => {
+      const handle = e.audiusHandle?.toLowerCase() ?? '';
+      const track = e.trackName?.toLowerCase() ?? '';
+      return handle || track || e.battleId?.toLowerCase() || e.queueId?.toLowerCase() || e.id?.toString().toLowerCase() || '';
+    };
+
+    fallbackEntries.forEach((e) => {
+      const key = makeKey(e);
+      if (key) byHandle.set(key, e);
+    });
+    quickEntries.forEach((e) => {
+      const key = makeKey(e);
+      if (!key) return;
+      const existing = byHandle.get(key);
+      if (!existing) {
+        byHandle.set(key, e);
+        return;
+      }
+
+      type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+      const merged: Mutable<QuickBattleLeaderboardEntry> = { ...existing };
+
+      type NumericKey = 'wins' | 'losses' | 'battlesParticipated' | 'totalVolumeGenerated' | 'totalVolume' | 'totalTrades';
+      const additiveKeys: NumericKey[] = [
+        'wins',
+        'losses',
+        'battlesParticipated',
+        'totalVolumeGenerated',
+        'totalVolume',
+        'totalTrades',
+      ];
+
+      additiveKeys.forEach((k: NumericKey) => {
+        const a = typeof merged[k] === 'number' ? merged[k] : 0;
+        const b = typeof e[k] === 'number' ? e[k] as number : 0;
+        const sum = a + b;
+        if (sum > 0) merged[k] = sum as number;
+      });
+
+      Object.entries(e).forEach(([k, v]) => {
+        const keyName = k as keyof QuickBattleLeaderboardEntry;
+        if (additiveKeys.includes(keyName)) return;
+        if (v !== undefined && v !== null) merged[keyName] = v as QuickBattleLeaderboardEntry[keyof QuickBattleLeaderboardEntry];
+      });
+      byHandle.set(key, merged);
+    });
+    return Array.from(byHandle.values());
+  }, [fallbackEntries, quickEntries]);
+
   const hasDatabaseEntries = quickEntries.length > 0;
-  const entries = hasDatabaseEntries ? quickEntries : fallbackEntries;
-  const dataSource: 'Database' | 'Fallback' | 'Empty' =
-    hasDatabaseEntries ? 'Database' : (fallbackEntries.length > 0 ? 'Fallback' : 'Empty');
+  const entries = mergedEntries;
+  let dataSource: 'Database' | 'Fallback' | 'Mixed' | 'Empty';
+  if (entries.length === 0) dataSource = 'Empty';
+  else if (hasDatabaseEntries && fallbackEntries.length > 0) dataSource = 'Mixed';
+  else if (hasDatabaseEntries) dataSource = 'Database';
+  else dataSource = 'Fallback';
+  const dataSourceLabel = (() => {
+    if (dataSource === 'Database') return 'Using cached Supabase view';
+    if (dataSource === 'Mixed') return 'Merged Supabase + live quick battle data';
+    if (dataSource === 'Fallback') return 'Using live quick battle data';
+    return 'No quick battles yet';
+  })();
   const loading = isFetching && !hasDatabaseEntries;
 
   const filteredEntries = useMemo(() => {
@@ -291,7 +418,7 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
             Quick Battle Leaderboard
           </div>
           <div className="text-xs text-ui-gray mt-1">
-            {dataSource === 'Database' ? 'Using cached Supabase view' : dataSource === 'Fallback' ? 'Using live quick battle data' : 'No quick battles yet'}
+            {dataSourceLabel}
           </div>
         </div>
 
@@ -350,118 +477,23 @@ export const QuickBattleLeaderboard: React.FC<Props> = ({ battles, solPrice }) =
             <thead className="bg-navy-900 border-b border-navy-700 text-ui-gray text-xs uppercase tracking-wider">
               <tr>
                 <th className="p-4 pl-6 w-16">Rank</th>
-                <th className="p-4">{isDatabaseMode ? 'Track' : 'Matchup'}</th>
+                <th className="p-4">Track</th>
                 <th className="p-4 text-right">Volume</th>
-                <th className="p-4 text-right">{isDatabaseMode ? 'Results' : 'Winner'}</th>
-                <th className="p-4 text-right">{isDatabaseMode ? 'Battles' : 'Queue / Battle'}</th>
-                <th className="p-4 pr-6 text-right">{isDatabaseMode ? 'Updated' : 'Created'}</th>
+                <th className="p-4 text-right">Results</th>
+                <th className="p-4 text-right">Battles</th>
+                <th className="p-4 pr-6 text-right">Updated</th>
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-navy-700">
-              {isDatabaseMode
-                ? filteredEntries.map((entry, index) => (
-                    <DatabaseRow
-                      key={entry.id}
-                      entry={entry}
-                      index={index}
-                      solPrice={solPrice}
-                      formatDate={formatDate}
-                    />
-                  ))
-                : filteredEntries.map((entry, index) => (
-                    <tr key={entry.id} className="hover:bg-navy-700/60 transition-colors">
-                      <td className="p-4 pl-6">
-                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-bold text-xs ${
-                          index === 0 ? 'bg-yellow-500/20 text-yellow-500' :
-                          index === 1 ? 'bg-slate-300/20 text-slate-300' :
-                          index === 2 ? 'bg-orange-700/20 text-orange-500' :
-                          'text-ui-gray'
-                        }`}>
-                          {index + 1}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-blue/10 border border-navy-700 flex items-center justify-center">
-                              {entry.artist1ProfilePic ? (
-                                <img
-                                  src={entry.artist1ProfilePic}
-                                  alt={entry.artist1Handle}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const img = e.target as HTMLImageElement;
-                                    img.style.display = 'none';
-                                    const fallback = document.createElement('div');
-                                    fallback.className = 'w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold';
-                                    fallback.textContent = (entry.artist1Handle || 'A').slice(0, 2).toUpperCase();
-                                    img.parentElement?.appendChild(fallback);
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs text-wave-blue font-bold">
-                                  {(entry.artist1Handle || 'A').slice(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-semibold">{entry.artist1Handle || 'Artist A'}</div>
-                              {typeof entry.artist1Score === 'number' && (
-                                <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist1Score)}</div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-wave-green/10 border border-navy-700 flex items-center justify-center">
-                              {entry.artist2ProfilePic ? (
-                                <img
-                                  src={entry.artist2ProfilePic}
-                                  alt={entry.artist2Handle}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const img = e.target as HTMLImageElement;
-                                    img.style.display = 'none';
-                                    const fallback = document.createElement('div');
-                                    fallback.className = 'w-full h-full flex items-center justify-center text-xs text-wave-green font-bold';
-                                    fallback.textContent = (entry.artist2Handle || 'B').slice(0, 2).toUpperCase();
-                                    img.parentElement?.appendChild(fallback);
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs text-wave-green font-bold">
-                                  {(entry.artist2Handle || 'B').slice(0, 2).toUpperCase()}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-white font-semibold">{entry.artist2Handle || 'Artist B'}</div>
-                              {typeof entry.artist2Score === 'number' && (
-                                <div className="text-xs text-ui-gray">Score: {formatSol(entry.artist2Score)}</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="font-mono text-slate-200">{formatSol(entry.totalVolume || 0)}</div>
-                        <div className="text-[10px] text-ui-gray">{formatUsd(entry.totalVolume || 0, solPrice)}</div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-navy-900 border border-navy-700 text-xs text-white">
-                          <Trophy size={12} className="text-yellow-400" />
-                          {entry.winnerHandle || 'Pending'}
-                        </div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="text-xs text-ui-gray">Queue: {entry.queueId || '—'}</div>
-                        <div className="text-xs text-ui-gray mt-1">Battle: {entry.battleId || '—'}</div>
-                      </td>
-                      <td className="p-4 pr-6 text-right text-ui-gray text-xs">
-                        <div>{formatDate(entry.createdAt)}</div>
-                        {entry.status && <div className="mt-1 text-white font-semibold">{entry.status}</div>}
-                      </td>
-                    </tr>
-                  ))}
+              {filteredEntries.map((entry, index) => (
+                <DatabaseRow
+                  key={entry.id}
+                  entry={entry}
+                  index={index}
+                  solPrice={solPrice}
+                  formatDate={formatDate}
+                />
+              ))}
 
               {!loading && filteredEntries.length === 0 && (
                 <tr>

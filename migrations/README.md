@@ -2,6 +2,52 @@
 
 This directory contains SQL migration scripts for the WaveWarz Analytics database.
 
+## Migration 005: Comprehensive Schema Refactoring ⭐ NEW
+
+**File**: `005_refactor_schema_comprehensive.sql`
+
+**Documentation**: `005_MIGRATION_GUIDE.md` (detailed guide)
+
+**Purpose**: Comprehensive schema refactoring to improve data integrity, performance, and maintainability.
+
+### What This Migration Does
+
+1. **Adds CHECK constraints** for data validation across all tables
+   - Ensures numeric fields are non-negative (volumes, pools, counts)
+   - Validates win rates are between 0-100%
+   - Prevents invalid data at database level
+
+2. **Creates performance indexes** for common query patterns
+   - Artist wallet lookups
+   - Battle type filtering (quick/community/test)
+   - Winner queries
+   - Leaderboard sorting
+
+3. **Implements auto-updating triggers**
+   - Automatically updates artist_leaderboard when battles complete
+   - Calculates win rates and averages in real-time
+   - Excludes test battles
+
+### Key Benefits
+
+✅ **Better data integrity** - Database-level validation prevents bugs
+✅ **Faster queries** - Optimized indexes for all common patterns  
+✅ **Real-time leaderboards** - Automatic updates via triggers
+✅ **Production-safe** - Non-destructive, uses CONCURRENTLY
+✅ **No code changes needed** - Fully backwards compatible
+
+### How to Apply
+
+See [005_MIGRATION_GUIDE.md](./005_MIGRATION_GUIDE.md) for detailed instructions, validation steps, and troubleshooting.
+
+Quick start:
+```sql
+-- Via Supabase Dashboard SQL Editor
+-- Copy and run: 005_refactor_schema_comprehensive.sql
+```
+
+---
+
 ## Migration 001: Optimize Battles Indexes
 
 **File**: `001_optimize_battles_indexes.sql`

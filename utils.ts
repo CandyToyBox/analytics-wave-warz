@@ -16,6 +16,12 @@ const DISTRIBUTION = {
 };
 
 export const calculateTVLWinner = (state: BattleState): 'A' | 'B' => {
+  // Use the authoritative on-chain/DB winner flag when available
+  if (state.winnerDecided && state.winnerArtistA !== undefined) {
+    return state.winnerArtistA ? 'A' : 'B';
+  }
+  // Fall back to TVL comparison for in-progress or unresolved battles.
+  // Tie goes to 'B' to match the original on-chain tie-breaking convention.
   return state.artistASolBalance > state.artistBSolBalance ? 'A' : 'B';
 };
 
@@ -202,14 +208,17 @@ export const groupBattlesIntoEvents = (battles: BattleSummary[]): BattleEvent[] 
   const events: BattleEvent[] = [];
   
   // Sort by date ascending first to process rounds in order
-  const sortedBattles = [...battles].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  // Exclude Quick Battles — they are song vs song battles and should not be grouped as events
+  const sortedBattles = [...battles]
+    .filter(b => !b.isQuickBattle)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   sortedBattles.forEach(battle => {
     // Check if this battle belongs to the latest event processed
     const lastEvent = events[events.length - 1];
     
     if (lastEvent) {
-      // Logic: Same artists, created within 24 hours of the event's first round
+      // Logic: Same artists, created within 8 hours of the event's first round
       const sameArtists = 
         (battle.artistA.name === lastEvent.artistA.name && battle.artistB.name === lastEvent.artistB.name) ||
         (battle.artistA.name === lastEvent.artistB.name && battle.artistB.name === lastEvent.artistA.name);
@@ -218,7 +227,7 @@ export const groupBattlesIntoEvents = (battles: BattleSummary[]): BattleEvent[] 
       const battleTime = new Date(battle.createdAt).getTime();
       const timeDiffHours = (battleTime - eventTime) / (1000 * 60 * 60);
 
-      if (sameArtists && timeDiffHours < 24) {
+      if (sameArtists && timeDiffHours < 8) {
         lastEvent.rounds.push(battle);
         return;
       }
