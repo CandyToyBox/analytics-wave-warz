@@ -12,6 +12,7 @@ import {
 } from '../services/supabaseClient';
 import { calculateArtistLeaderboard, mockEstimateVolumes } from '../services/artistLeaderboardService';
 import { isTestBattle } from '../config/battleFilters';
+import { applyBattleCategory } from '../config/battleCategoryMap';
 
 /** Returns true if a BattleSummary is a Quick Battle (flag AND both music links). */
 function isBattleSummaryQuick(b: BattleSummary): boolean {
@@ -93,7 +94,7 @@ export function useBattleDetails(battleId: string | null) {
         const battleIdValue = normalizeBattleId(data.battle_id);
         if (!battleIdValue) return null;
 
-        return {
+        const battle: BattleSummary = {
           id: battleIdValue,
           battleId: battleIdValue,
           createdAt: data.created_at,
@@ -123,6 +124,7 @@ export function useBattleDetails(battleId: string | null) {
           streamLink: data.stream_link,
           isCommunityBattle: data.is_community_battle,
         };
+        return applyBattleCategory(battle);
       } catch (e) {
         console.warn('Failed to fetch battle detail', e);
         return null;

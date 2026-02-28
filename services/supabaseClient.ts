@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { BattleSummary, ArtistLeaderboardStats, TraderLeaderboardEntry, BattleState, TraderProfileStats, QuickBattleLeaderboardEntry } from '../types';
 import { batchFetchAudiusTrackInfo } from './audiusService';
+import { applyBattleCategory } from '../config/battleCategoryMap';
 
 // --- CONFIGURATION ---
 // OFFICIAL WAVEWARZ DB CONNECTION
@@ -89,7 +90,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
 
         if (!battleId) return null;
 
-        return {
+        const battle: BattleSummary = {
           id: battleId,
           battleId,
           createdAt: row.created_at,
@@ -130,6 +131,7 @@ export async function fetchBattlesFromSupabase(): Promise<BattleSummary[] | null
           uniqueTraders: row.unique_traders ?? undefined,
           lastScannedAt: row.last_scanned_at ?? undefined,
         };
+        return applyBattleCategory(battle);
       })
       .filter(Boolean) as BattleSummary[];
 
